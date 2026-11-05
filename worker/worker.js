@@ -9,7 +9,7 @@
  *   SUMOPOD_BASE_URL  (var)  default https://ai.sumopod.com/v1
  */
 // Override with an ALLOWED_MODELS var (comma-separated) in wrangler.toml.
-const DEFAULT_MODELS = 'gpt-4o-mini,qwen3-vl-plus,gpt-5-nano,glm-5.3-flash';
+const DEFAULT_MODELS = 'qwen3.8-max,gpt-5-mini,gemini/gemini-3.8-flash';
 const MAX_BODY = 3 * 1024 * 1024; // photos are resized to 1600 px in the page, well under this
 const PER_MINUTE = 6;             // best-effort per-IP limit (per Worker instance)
 const hits = new Map();
