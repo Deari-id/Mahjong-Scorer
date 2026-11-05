@@ -25,10 +25,15 @@ export default {
     };
     const reply = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
+    // Accept the secret under a few spellings: names are case-sensitive and easy to mistype.
+    const key = env.SUMOPOD_API_KEY || env.sumopod_api_key || env.SUMOPOD_KEY || env.API_KEY;
+
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    // Health check: open the Worker URL in a browser to see whether the key is set (never shows the key).
+    if (request.method === 'GET') return reply(200, { ok: true, keyConfigured: !!key, models: [...MODELS] });
     if (request.method !== 'POST') return reply(405, { error: { message: 'Use POST.' } });
     if (!allowed.includes(origin)) return reply(403, { error: { message: 'This origin is not allowed.' } });
-    if (!env.SUMOPOD_API_KEY) return reply(500, { error: { message: 'The Worker has no SUMOPOD_API_KEY secret.' } });
+    if (!key) return reply(500, { error: { message: 'The Worker has no SUMOPOD_API_KEY secret.' } });
 
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown', now = Date.now();
     const recent = (hits.get(ip) || []).filter(t => now - t < 60000);
@@ -46,7 +51,7 @@ export default {
     const base = (env.SUMOPOD_BASE_URL || 'https://ai.sumopod.com/v1').replace(/\/+$/, '');
     const upstream = await fetch(base + '/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.SUMOPOD_API_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
       body: JSON.stringify({ model: body.model, messages: msgs }),
     });
     return new Response(await upstream.text(), { status: upstream.status, headers: { ...cors, 'Content-Type': 'application/json' } });
