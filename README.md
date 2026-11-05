@@ -12,12 +12,12 @@ Live at **https://deari-id.github.io/Mahjong-Scorer/** (the path is case-sensiti
 
 Visitors don't need an API key. The page sends the photo to a small Cloudflare Worker (`worker/`), which adds the
 SumoPod key on the server and forwards the request to `https://ai.sumopod.com/v1/chat/completions`. The page asks
-`glm-5.3-flash` first and retries with `gpt-5-nano` if that fails.
+vision models in order: `gpt-4o-mini`, then `qwen3-vl-plus`, then `gpt-5-nano` (set in `MODEL_CHAIN` in `src/page.html` and `ALLOWED_MODELS` in `worker/wrangler.toml`). Open `<worker URL>/models` to list the model names your SumoPod account offers.
 
 The key is never in this repository or in the page. Anything in a public page can be read by anyone, so the key must
 only live in the Worker's secrets.
 
-The Worker only accepts calls from `https://deari-id.github.io`, only the two models above, photos up to 3 MB and
+The Worker only accepts calls from `https://deari-id.github.io`, only the allowed models, photos up to 3 MB and
 about 6 photos a minute per visitor. Set a spending limit in your SumoPod account as well.
 
 ### Deploy the Worker (once)

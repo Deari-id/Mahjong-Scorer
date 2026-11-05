@@ -598,7 +598,10 @@ select.btn { appearance: auto; }
   // Shared photo-reading service (the Cloudflare Worker in /worker). It holds the SumoPod key, so visitors need none.
   // Paste the Worker's URL here after deploying it, e.g. 'https://mahjong-scorer-ai.yourname.workers.dev'.
   const SHARED_API_URL = 'https://mahjong-scorer-ai.lois-laura.workers.dev';
-  const AI_DEFAULTS = { base: 'https://ai.sumopod.com/v1', model: 'glm-5.3-flash', fallback: 'gpt-5-nano', key: '' };
+  // Vision models tried in order through the shared service. Each must also be in the Worker's ALLOWED_MODELS.
+  // DeepSeek is not here: its API models cannot read images.
+  const MODEL_CHAIN = ['gpt-4o-mini', 'qwen3-vl-plus', 'gpt-5-nano'];
+  const AI_DEFAULTS = { base: 'https://ai.sumopod.com/v1', model: 'gpt-4o-mini', fallback: 'qwen3-vl-plus', key: '' };
   let AI = { ...AI_DEFAULTS };
   try { AI = Object.assign(AI, JSON.parse(localStorage.getItem('mj-ai') || '{}')); } catch (e) { }
   const scanMsg = (html, err) => { const m = $('#scan-msg'); m.hidden = !html; m.className = 'msg scanmsg' + (err ? ' err' : ''); m.innerHTML = html || ''; };
@@ -666,23 +669,32 @@ select.btn { appearance: auto; }
     if (Array.isArray(content)) content = content.map(p => p.text || '').join('');
     return parseJSON(content);
   }
+  function tileCount(r) {
+    if (!r || typeof r !== 'object') return 0;
+    const ok = c => typeof c === 'string' && CODE.test(c.trim());
+    const melds = Array.isArray(r.melds) ? r.melds.reduce((a, m) => a + (Array.isArray(m && m.tiles) ? m.tiles.filter(ok).length : 0), 0) : 0;
+    return (Array.isArray(r.hand) ? r.hand.filter(ok).length : 0) + melds + (ok(r.win) ? 1 : 0);
+  }
   // Each model gets a time limit, so a slow or stuck first model hands over to the fallback quickly.
-  const TIME_LIMIT = [25, 60];
+  const TIME_LIMIT = [30, 40, 45];
   async function readTiles(file, signal, progress) {
     if (AI.key || SHARED_API_URL) {
       const shared = !AI.key;
       const dataUrl = await toDataURL(file);
-      const models = (shared ? [AI_DEFAULTS.model, AI_DEFAULTS.fallback] : [AI.model, AI.fallback]).filter((m, i, a) => m && a.indexOf(m) === i);
+      const models = (shared ? MODEL_CHAIN : [AI.model, AI.fallback]).filter((m, i, a) => m && a.indexOf(m) === i);
       const tried = [];
       let lastErr;
       for (let i = 0; i < models.length; i++) {
-        const m = models[i], limit = TIME_LIMIT[Math.min(i, 1)], t0 = Date.now();
+        const m = models[i], limit = TIME_LIMIT[Math.min(i, TIME_LIMIT.length - 1)], t0 = Date.now();
         const ctl = new AbortController();
         const onAbort = () => ctl.abort('stop'); signal.addEventListener('abort', onAbort);
         const timer = setTimeout(() => ctl.abort('timeout'), limit * 1000);
         const tick = setInterval(() => progress(m, Math.round((Date.now() - t0) / 1000), tried), 1000); progress(m, 0, tried);
         try {
           const r = await askSumoPod(m, dataUrl, ctl.signal, shared, /^gpt-5/.test(m) ? 'low' : null);
+          // An answer with almost no tiles means the model could not see them: try the next model.
+          const n = tileCount(r);
+          if (n < 8) throw { code: 'empty_read', message: `found only ${n} tile${n === 1 ? '' : 's'}` };
           return { r, via: m, secs: Math.round((Date.now() - t0) / 1000), tried };
         } catch (e) {
           if (e.code === 'cancelled' || e.code === 'bad_key') throw e;
@@ -722,6 +734,7 @@ Reply with only this JSON:
       const c = e && e.code;
       const copy = {
         cancelled: '',
+        empty_read: `The tiles could not be made out: ${esc(((e && e.tried) || []).join('; '))}. Try a closer photo taken from above in even light.`,
         timeout: `No model answered in time${e && e.tried ? ': ' + esc(e.tried.join('; ')) : ''}. Try again, or use a smaller, closer photo of just the tiles.`,
         bad_key: AI.key ? 'SumoPod refused the API key. Check it in AI settings.' : 'The photo service refused the request. Try again later.',
         network: 'Could not reach the API from this page. Check your connection and the API base URL in AI settings.',

@@ -8,7 +8,8 @@
  *   ALLOWED_ORIGINS   (var)  comma-separated origins allowed to call this Worker
  *   SUMOPOD_BASE_URL  (var)  default https://ai.sumopod.com/v1
  */
-const MODELS = new Set(['glm-5.3-flash', 'gpt-5-nano']);
+// Override with an ALLOWED_MODELS var (comma-separated) in wrangler.toml.
+const DEFAULT_MODELS = 'gpt-4o-mini,qwen3-vl-plus,gpt-5-nano,glm-5.3-flash';
 const MAX_BODY = 3 * 1024 * 1024; // photos are resized to 1600 px in the page, well under this
 const PER_MINUTE = 6;             // best-effort per-IP limit (per Worker instance)
 const hits = new Map();
@@ -25,11 +26,20 @@ export default {
     };
     const reply = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
+    const MODELS = new Set((env.ALLOWED_MODELS || DEFAULT_MODELS).split(',').map(s => s.trim()).filter(Boolean));
     // Accept the secret under a few spellings: names are case-sensitive and easy to mistype.
     const key = env.SUMOPOD_API_KEY || env.sumopod_api_key || env.SUMOPOD_KEY || env.API_KEY;
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     // Health check: open the Worker URL in a browser to see whether the key is set (never shows the key).
+    const base = (env.SUMOPOD_BASE_URL || 'https://ai.sumopod.com/v1').replace(/\/+$/, '');
+    // Open <worker>/models in a browser to list the model names your SumoPod account offers.
+    if (request.method === 'GET' && new URL(request.url).pathname === '/models') {
+      if (!key) return reply(500, { error: { message: 'No key configured.' } });
+      const r = await fetch(base + '/models', { headers: { 'Authorization': 'Bearer ' + key } });
+      let ids = null; try { ids = (await r.clone().json()).data.map(m => m.id).sort(); } catch { }
+      return ids ? reply(200, { models: ids }) : new Response(await r.text(), { status: r.status, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
     if (request.method === 'GET') return reply(200, { ok: true, keyConfigured: !!key, models: [...MODELS] });
     if (request.method !== 'POST') return reply(405, { error: { message: 'Use POST.' } });
     if (!allowed.includes(origin)) return reply(403, { error: { message: 'This origin is not allowed.' } });
@@ -48,7 +58,6 @@ export default {
     const msgs = body.messages;
     if (!Array.isArray(msgs) || msgs.length !== 1 || !Array.isArray(msgs[0].content)) return reply(400, { error: { message: 'Unexpected request.' } });
 
-    const base = (env.SUMOPOD_BASE_URL || 'https://ai.sumopod.com/v1').replace(/\/+$/, '');
     const upstream = await fetch(base + '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
