@@ -5,4 +5,4 @@ compatibility_date = "2025-01-01"
 [vars]
 ALLOWED_ORIGINS = "https://deari-id.github.io"
 SUMOPOD_BASE_URL = "https://ai.sumopod.com/v1"
-ALLOWED_MODELS = "qwen3.8-max,gpt-5-mini,gemini/gemini-3.8-flash"
+ALLOWED_MODELS = "gemini/gemini-3.8-flash,gpt-5-mini"

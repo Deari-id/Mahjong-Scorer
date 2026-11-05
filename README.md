@@ -12,7 +12,7 @@ Live at **https://deari-id.github.io/Mahjong-Scorer/** (the path is case-sensiti
 
 Visitors don't need an API key. The page sends the photo to a small Cloudflare Worker (`worker/`), which adds the
 SumoPod key on the server and forwards the request to `https://ai.sumopod.com/v1/chat/completions`. The page asks
-vision models in order: `qwen3.8-max`, then `gpt-5-mini`, then `gemini/gemini-3.8-flash` (set in `MODEL_CHAIN` in `src/page.html` and `ALLOWED_MODELS` in `worker/wrangler.toml`). Open `<worker URL>/models` to list the model names your SumoPod account offers.
+`gemini/gemini-3.8-flash` first and falls back to `gpt-5-mini` (set in `MODEL_CHAIN` in `src/page.html` and `ALLOWED_MODELS` in `worker/wrangler.toml`). Open `<worker URL>/models` to list the model names your SumoPod account offers.
 
 The key is never in this repository or in the page. Anything in a public page can be read by anyone, so the key must
 only live in the Worker's secrets.

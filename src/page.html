@@ -599,9 +599,8 @@ select.btn { appearance: auto; }
   // Paste the Worker's URL here after deploying it, e.g. 'https://mahjong-scorer-ai.yourname.workers.dev'.
   const SHARED_API_URL = 'https://mahjong-scorer-ai.lois-laura.workers.dev';
   // Vision models tried in order through the shared service. Each must also be in the Worker's ALLOWED_MODELS.
-  // DeepSeek is not here: its API models cannot read images.
-  const MODEL_CHAIN = ['qwen3.8-max', 'gpt-5-mini', 'gemini/gemini-3.8-flash'];
-  const AI_DEFAULTS = { base: 'https://ai.sumopod.com/v1', model: 'qwen3.8-max', fallback: 'gpt-5-mini', key: '' };
+  const MODEL_CHAIN = ['gemini/gemini-3.8-flash', 'gpt-5-mini'];
+  const AI_DEFAULTS = { base: 'https://ai.sumopod.com/v1', model: 'gemini/gemini-3.8-flash', fallback: 'gpt-5-mini', key: '' };
   let AI = { ...AI_DEFAULTS };
   try { AI = Object.assign(AI, JSON.parse(localStorage.getItem('mj-ai') || '{}')); } catch (e) { }
   const scanMsg = (html, err) => { const m = $('#scan-msg'); m.hidden = !html; m.className = 'msg scanmsg' + (err ? ' err' : ''); m.innerHTML = html || ''; };
@@ -676,7 +675,7 @@ select.btn { appearance: auto; }
     return (Array.isArray(r.hand) ? r.hand.filter(ok).length : 0) + melds + (ok(r.win) ? 1 : 0);
   }
   // Each model gets a time limit, so a slow or stuck first model hands over to the fallback quickly.
-  const TIME_LIMIT = [40, 45, 40];
+  const TIME_LIMIT = [30, 60];
   async function readTiles(file, signal, progress) {
     if (AI.key || SHARED_API_URL) {
       const shared = !AI.key;
