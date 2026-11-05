@@ -1,0 +1,7 @@
+name = "mahjong-scorer-ai"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://deari-id.github.io"
+SUMOPOD_BASE_URL = "https://ai.sumopod.com/v1"

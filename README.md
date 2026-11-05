@@ -6,13 +6,34 @@ Scores Chinese Official (MCR) mahjong hands: all 81 scoring hands, implied-hand 
 - **Score from a photo**: take a picture of the tiles and an AI vision model fills in the hand for you to check.
 - **Quick tally**: tick the scoring hands yourself and get the total and payments.
 
+Live at **https://deari-id.github.io/Mahjong-Scorer/** (the path is case-sensitive).
+
 ## Photo reading (SumoPod)
 
-Open **AI settings** in the photo panel and paste your SumoPod API key. The page calls the OpenAI-compatible endpoint
-`https://ai.sumopod.com/v1/chat/completions` with model `glm-5.3-flash`, and retries with `gpt-5-nano` if that fails.
-The base URL and both models can be changed there.
+Visitors don't need an API key. The page sends the photo to a small Cloudflare Worker (`worker/`), which adds the
+SumoPod key on the server and forwards the request to `https://ai.sumopod.com/v1/chat/completions`. The page asks
+`glm-5.3-flash` first and retries with `gpt-5-nano` if that fails.
 
-The key is stored only in your browser (localStorage). Never commit an API key to this repository.
+The key is never in this repository or in the page. Anything in a public page can be read by anyone, so the key must
+only live in the Worker's secrets.
+
+The Worker only accepts calls from `https://deari-id.github.io`, only the two models above, photos up to 3 MB and
+about 6 photos a minute per visitor. Set a spending limit in your SumoPod account as well.
+
+### Deploy the Worker (once)
+
+1. Create a free account at https://dash.cloudflare.com and go to **Workers & Pages → Create → Create Worker**.
+   Name it `mahjong-scorer-ai`, deploy, then **Edit code**, paste in `worker/worker.js` and deploy again.
+2. In the Worker's **Settings → Variables and Secrets**, add:
+   - `SUMOPOD_API_KEY`: your SumoPod key, type **Secret**
+   - `ALLOWED_ORIGINS`: `https://deari-id.github.io`
+3. Copy the Worker's URL (like `https://mahjong-scorer-ai.<you>.workers.dev`) into `SHARED_API_URL` near the
+   photo-scanning code in `src/page.html`, run `python3 build.py`, then commit and push.
+
+Using the command line instead: `cd worker && npx wrangler deploy && npx wrangler secret put SUMOPOD_API_KEY`.
+
+Anyone who prefers their own SumoPod account can still enter a key under **AI settings (optional)**. It stays in that
+browser only.
 
 ## Development
 

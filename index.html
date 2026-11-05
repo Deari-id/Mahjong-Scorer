@@ -227,14 +227,14 @@ select.btn { appearance: auto; }
             <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo-lib" class="sr">
           </div>
           <details class="aiset scanmsg" id="ai-settings">
-            <summary>AI settings <span class="hint" id="ai-status"></span></summary>
+            <summary>AI settings (optional) <span class="hint" id="ai-status"></span></summary>
             <div class="aigrid">
               <label class="field"><span class="label">SumoPod API key</span><input class="inp" type="password" id="ai-key" autocomplete="off" placeholder="sk-…"></label>
               <label class="field"><span class="label">API base URL</span><input class="inp" type="url" id="ai-base"></label>
               <label class="field"><span class="label">Model</span><input class="inp" type="text" id="ai-model"></label>
               <label class="field"><span class="label">Fallback model</span><input class="inp" type="text" id="ai-fallback"></label>
             </div>
-            <p class="hint" style="margin:8px 0">The key is saved only in this browser on this device. It is never added to the page or the GitHub repository.</p>
+            <p class="hint" style="margin:8px 0">Not needed for normal use. Add your own key only to use your own SumoPod account. It is saved only in this browser on this device, never in the page or the repository.</p>
             <div class="acts"><button class="btn primary" id="ai-save">Save settings</button><button class="btn" id="ai-forget">Forget key</button></div>
           </details>
           <div class="msg scanmsg" id="scan-msg" hidden></div>
@@ -1081,17 +1081,20 @@ var MJ = (function () {
   document.addEventListener('change', e => { const k = e.target.dataset && e.target.dataset.k; if (k) { S[k] = e.target.checked; save(); render(); } });
   // ---------- photo scanning: SumoPod API (your key) or Claude when opened on claude.ai ----------
   let sampleFn = null, scanCtl = null;
+  // Shared photo-reading service (the Cloudflare Worker in /worker). It holds the SumoPod key, so visitors need none.
+  // Paste the Worker's URL here after deploying it, e.g. 'https://mahjong-scorer-ai.yourname.workers.dev'.
+  const SHARED_API_URL = '';
   const AI_DEFAULTS = { base: 'https://ai.sumopod.com/v1', model: 'glm-5.3-flash', fallback: 'gpt-5-nano', key: '' };
   let AI = { ...AI_DEFAULTS };
   try { AI = Object.assign(AI, JSON.parse(localStorage.getItem('mj-ai') || '{}')); } catch (e) { }
   const scanMsg = (html, err) => { const m = $('#scan-msg'); m.hidden = !html; m.className = 'msg scanmsg' + (err ? ' err' : ''); m.innerHTML = html || ''; };
   const scanBusy = on => { ['#scan-cam', '#scan-lib'].forEach(id => { $(id).style.pointerEvents = on ? 'none' : ''; $(id).style.opacity = on ? .5 : ''; }); $('#scan-stop').hidden = !on; };
   function aiStatus() {
-    $('#ai-status').textContent = AI.key ? `· SumoPod key saved (${AI.model}, fallback ${AI.fallback})` : sampleFn ? '· using Claude' : '· no API key yet';
+    $('#ai-status').textContent = AI.key ? `· using your own key (${AI.model}, fallback ${AI.fallback})` : SHARED_API_URL ? '· ready, no key needed' : sampleFn ? '· using Claude' : '· no API key yet';
     $('#ai-key').value = AI.key; $('#ai-base').value = AI.base; $('#ai-model').value = AI.model; $('#ai-fallback').value = AI.fallback;
   }
   function needKey() {
-    if (!AI.key && !sampleFn) { $('#ai-settings').open = true; scanMsg('To read photos, paste your SumoPod API key in AI settings and save. You can still enter the tiles by hand below.'); return true; }
+    if (!AI.key && !SHARED_API_URL && !sampleFn) { $('#ai-settings').open = true; scanMsg('To read photos, paste your SumoPod API key in AI settings and save. You can still enter the tiles by hand below.'); return true; }
     return false;
   }
   $('#ai-save').addEventListener('click', () => {
@@ -1126,12 +1129,12 @@ var MJ = (function () {
     for (const x of tries) { if (!x) continue; try { return JSON.parse(x); } catch (e) { } }
     throw { code: 'invalid_json' };
   }
-  async function askSumoPod(model, dataUrl, signal) {
+  async function askSumoPod(model, dataUrl, signal, shared) {
     let res;
     try {
-      res = await fetch(AI.base + '/chat/completions', {
+      res = await fetch(shared ? SHARED_API_URL : AI.base + '/chat/completions', {
         method: 'POST', signal,
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI.key },
+        headers: shared ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI.key },
         body: JSON.stringify({ model, messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: dataUrl } }] }] }),
       });
     } catch (e) { throw signal.aborted ? { code: 'cancelled' } : { code: 'network', message: String(e && e.message || e) }; }
@@ -1146,12 +1149,13 @@ var MJ = (function () {
     return parseJSON(content);
   }
   async function readTiles(file, signal) {
-    if (AI.key) {
+    if (AI.key || SHARED_API_URL) {
+      const shared = !AI.key;
       const dataUrl = await toDataURL(file);
-      const models = [AI.model, AI.fallback].filter((m, i, a) => m && a.indexOf(m) === i);
+      const models = (shared ? [AI_DEFAULTS.model, AI_DEFAULTS.fallback] : [AI.model, AI.fallback]).filter((m, i, a) => m && a.indexOf(m) === i);
       let lastErr;
       for (const m of models) {
-        try { const r = await askSumoPod(m, dataUrl, signal); return { r, via: m }; }
+        try { const r = await askSumoPod(m, dataUrl, signal, shared); return { r, via: m }; }
         catch (e) { if (e.code === 'cancelled' || e.code === 'bad_key') throw e; lastErr = { ...e, model: m }; }
       }
       throw lastErr;
@@ -1184,7 +1188,7 @@ Reply with only this JSON:
       const c = e && e.code;
       const copy = {
         cancelled: '',
-        bad_key: 'SumoPod refused the API key. Check it in AI settings.',
+        bad_key: AI.key ? 'SumoPod refused the API key. Check it in AI settings.' : 'The photo service refused the request. Try again later.',
         network: 'Could not reach the API from this page. Check your connection and the API base URL in AI settings.',
         http: `The API returned an error${e.status ? ' (' + e.status + ')' : ''}${e.model ? ' for ' + esc(e.model) : ''}: ${esc(e.message || '')}`,
         not_granted: 'Photo reading needs your permission to use Claude. Reload the page to be asked again, or add a SumoPod key in AI settings.',
