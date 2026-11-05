@@ -27,7 +27,7 @@ about 6 photos a minute per visitor. Set a spending limit in your SumoPod accoun
 2. In the Worker's **Settings → Variables and Secrets**, add:
    - `SUMOPOD_API_KEY`: your SumoPod key, type **Secret**
    - `ALLOWED_ORIGINS`: `https://deari-id.github.io`
-3. Copy the Worker's URL (like `https://mahjong-scorer-ai.<you>.workers.dev`) into `SHARED_API_URL` near the
+3. Copy the Worker's URL (like `https://mahjong-scorer-ai.<you>.workers.dev`) into `SHARED_API_URL` (now set to `https://mahjong-scorer-ai.lois-laura.workers.dev`) near the
    photo-scanning code in `src/page.html`, run `python3 build.py`, then commit and push.
 
 Using the command line instead: `cd worker && npx wrangler deploy && npx wrangler secret put SUMOPOD_API_KEY`.

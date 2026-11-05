@@ -1083,7 +1083,7 @@ var MJ = (function () {
   let sampleFn = null, scanCtl = null;
   // Shared photo-reading service (the Cloudflare Worker in /worker). It holds the SumoPod key, so visitors need none.
   // Paste the Worker's URL here after deploying it, e.g. 'https://mahjong-scorer-ai.yourname.workers.dev'.
-  const SHARED_API_URL = '';
+  const SHARED_API_URL = 'https://mahjong-scorer-ai.lois-laura.workers.dev';
   const AI_DEFAULTS = { base: 'https://ai.sumopod.com/v1', model: 'glm-5.3-flash', fallback: 'gpt-5-nano', key: '' };
   let AI = { ...AI_DEFAULTS };
   try { AI = Object.assign(AI, JSON.parse(localStorage.getItem('mj-ai') || '{}')); } catch (e) { }
