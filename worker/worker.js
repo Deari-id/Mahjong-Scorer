@@ -52,7 +52,8 @@ export default {
     const upstream = await fetch(base + '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: body.model, messages: msgs }),
+      body: JSON.stringify({ model: body.model, messages: msgs,
+        ...(['minimal', 'low', 'medium'].includes(body.reasoning_effort) ? { reasoning_effort: body.reasoning_effort } : {}) }),
     });
     return new Response(await upstream.text(), { status: upstream.status, headers: { ...cors, 'Content-Type': 'application/json' } });
   },

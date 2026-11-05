@@ -623,15 +623,15 @@ select.btn { appearance: auto; }
     if (s && lim && lim.images) sampleFn = s;
     aiStatus();
   });
-  // Shrink the photo before sending: tiles stay legible at 1600 px and uploads stay small.
+  // Shrink the photo before sending: tiles stay legible at 1280 px and uploads stay small.
   function toDataURL(file) {
     return new Promise((res, rej) => {
       const img = new Image(), url = URL.createObjectURL(file);
       img.onload = () => {
-        const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const k = Math.min(1, 1280 / Math.max(img.width, img.height));
         const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
-        res(c.toDataURL('image/jpeg', 0.85));
+        res(c.toDataURL('image/jpeg', 0.8));
       };
       img.onerror = () => { URL.revokeObjectURL(url); rej({ code: 'image_rejected' }); };
       img.src = url;
@@ -643,16 +643,20 @@ select.btn { appearance: auto; }
     for (const x of tries) { if (!x) continue; try { return JSON.parse(x); } catch (e) { } }
     throw { code: 'invalid_json' };
   }
-  async function askSumoPod(model, dataUrl, signal, shared) {
+  async function askSumoPod(model, dataUrl, signal, shared, effort) {
     let res;
+    const payload = { model, messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } }] }] };
+    // GPT-5 models think before answering; low effort keeps a photo read to seconds instead of a minute.
+    if (effort) payload.reasoning_effort = effort;
     try {
       res = await fetch(shared ? SHARED_API_URL : AI.base + '/chat/completions', {
         method: 'POST', signal,
         headers: shared ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI.key },
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: dataUrl } }] }] }),
+        body: JSON.stringify(payload),
       });
-    } catch (e) { throw signal.aborted ? { code: 'cancelled' } : { code: 'network', message: String(e && e.message || e) }; }
+    } catch (e) { throw signal.aborted ? { code: signal.reason === 'timeout' ? 'timeout' : 'cancelled' } : { code: 'network', message: String(e && e.message || e) }; }
     const body = await res.text();
+    if (!res.ok && effort && res.status === 400 && /reasoning/i.test(body)) return askSumoPod(model, dataUrl, signal, shared, null);
     if (!res.ok) {
       let msg = body; try { const j = JSON.parse(body); msg = (j.error && (j.error.message || j.error)) || j.message || body; } catch (e) { }
       throw { code: res.status === 401 || res.status === 403 ? 'bad_key' : res.status === 429 ? 'rate_limited' : 'http', status: res.status, message: String(msg).slice(0, 200) };
@@ -662,19 +666,35 @@ select.btn { appearance: auto; }
     if (Array.isArray(content)) content = content.map(p => p.text || '').join('');
     return parseJSON(content);
   }
-  async function readTiles(file, signal) {
+  // Each model gets a time limit, so a slow or stuck first model hands over to the fallback quickly.
+  const TIME_LIMIT = [25, 60];
+  async function readTiles(file, signal, progress) {
     if (AI.key || SHARED_API_URL) {
       const shared = !AI.key;
       const dataUrl = await toDataURL(file);
       const models = (shared ? [AI_DEFAULTS.model, AI_DEFAULTS.fallback] : [AI.model, AI.fallback]).filter((m, i, a) => m && a.indexOf(m) === i);
+      const tried = [];
       let lastErr;
-      for (const m of models) {
-        try { const r = await askSumoPod(m, dataUrl, signal, shared); return { r, via: m }; }
-        catch (e) { if (e.code === 'cancelled' || e.code === 'bad_key') throw e; lastErr = { ...e, model: m }; }
+      for (let i = 0; i < models.length; i++) {
+        const m = models[i], limit = TIME_LIMIT[Math.min(i, 1)], t0 = Date.now();
+        const ctl = new AbortController();
+        const onAbort = () => ctl.abort('stop'); signal.addEventListener('abort', onAbort);
+        const timer = setTimeout(() => ctl.abort('timeout'), limit * 1000);
+        const tick = setInterval(() => progress(m, Math.round((Date.now() - t0) / 1000), tried), 1000); progress(m, 0, tried);
+        try {
+          const r = await askSumoPod(m, dataUrl, ctl.signal, shared, /^gpt-5/.test(m) ? 'low' : null);
+          return { r, via: m, secs: Math.round((Date.now() - t0) / 1000), tried };
+        } catch (e) {
+          if (e.code === 'cancelled' || e.code === 'bad_key') throw e;
+          const secs = Math.round((Date.now() - t0) / 1000);
+          tried.push(`${m} ${e.code === 'timeout' ? `took over ${limit} s` : `failed (${e.status ? e.status + ': ' : ''}${e.message || e.code})`}`);
+          lastErr = { ...e, model: m, tried };
+        } finally { clearTimeout(timer); clearInterval(tick); signal.removeEventListener('abort', onAbort); }
       }
       throw lastErr;
     }
-    return { r: await sampleFn.json(PROMPT, { images: [file], modelTier: 'complex', signal }), via: 'Claude' };
+    progress('Claude', null, []);
+    return { r: await sampleFn.json(PROMPT, { images: [file], modelTier: 'complex', signal }), via: 'Claude', tried: [] };
   }
   const CODE = /^([1-9])([mps])$|^[ESWNCFP]$/;
   const PROMPT = `This photo shows a player's winning Mahjong hand (Chinese Official rules). Identify every tile.
@@ -694,17 +714,18 @@ Reply with only this JSON:
     if (!file || needKey()) return;
     const th = $('#scan-thumb'); const img = new Image(); img.className = 'thumb'; img.alt = 'Your photo'; img.src = URL.createObjectURL(file); th.replaceWith(img); img.id = 'scan-thumb';
     scanCtl = new AbortController(); scanBusy(true);
-    scanMsg('Reading the tiles… this usually takes 20 to 60 seconds.');
+    const progress = (m, secs, tried) => scanMsg(`Reading the tiles with <b>${esc(m)}</b>…${secs !== null ? ` ${secs} s` : ''}${tried.length ? `<br><span class="hint">${esc(tried.join('; '))}</span>` : ''}`);
     try {
-      const { r, via } = await readTiles(file, scanCtl.signal);
-      applyScan(r, via);
+      const { r, via, secs, tried } = await readTiles(file, scanCtl.signal, progress);
+      applyScan(r, via + (secs !== undefined ? ` in ${secs} s` : '') + (tried.length ? ` (${tried.join('; ')})` : ''));
     } catch (e) {
       const c = e && e.code;
       const copy = {
         cancelled: '',
+        timeout: `No model answered in time${e && e.tried ? ': ' + esc(e.tried.join('; ')) : ''}. Try again, or use a smaller, closer photo of just the tiles.`,
         bad_key: AI.key ? 'SumoPod refused the API key. Check it in AI settings.' : 'The photo service refused the request. Try again later.',
         network: 'Could not reach the API from this page. Check your connection and the API base URL in AI settings.',
-        http: `The API returned an error${e.status ? ' (' + e.status + ')' : ''}${e.model ? ' for ' + esc(e.model) : ''}: ${esc(e.message || '')}`,
+        http: `The photo could not be read. ${esc(((e && e.tried) || []).join('; '))}`,
         not_granted: 'Photo reading needs your permission to use Claude. Reload the page to be asked again, or add a SumoPod key in AI settings.',
         image_rejected: 'That image could not be read. Try a JPEG or PNG photo.', rate_limited: 'Too many requests right now. Wait a minute and try again.',
         refused: 'The photo could not be read. Try a clearer picture of just the tiles.', invalid_json: 'The answer came back in the wrong shape. Try the photo again.',
