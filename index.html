@@ -1,0 +1,1231 @@
+<title>Mahjong Hand Scorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&text=%E4%B8%80%E4%BA%8C%E4%B8%89%E5%9B%9B%E4%BA%94%E5%85%AD%E4%B8%83%E5%85%AB%E4%B9%9D%E8%90%AC%E6%9D%B1%E5%8D%97%E8%A5%BF%E5%8C%97%E4%B8%AD%E7%99%BC%E7%99%BD&display=swap">
+<style>
+/* Layout: two-panel scoring table. Left = the hand you build from a tile rack; right = the score slip, sticky on wide screens. */
+:root {
+  --bg: #e9eeeb;
+  --surface: #f8faf9;
+  --surface-2: #dfe6e2;
+  --ink: #15211d;
+  --muted: #56655f;
+  --line: #c9d3ce;
+  --jade: #17654f;
+  --jade-soft: #d3e6dd;
+  --on-jade: #f4fbf8;
+  --seal: #b3312a;
+  --warn: #9a5b00;
+  --warn-soft: #f6e7c8;
+  --tile-face: #fbf8ee;
+  --tile-edge: #d8cfb8;
+  --tile-back: #2c7a5f;
+  --t-ink: #1b1b1b;
+  --t-red: #b72d26;
+  --t-green: #1f7a4c;
+  --t-blue: #22508e;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Instrument Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --f-tile: "Noto Serif TC", "Songti TC", "PMingLiU", "SimSun", serif;
+  --tw: 36px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1613; --surface: #15201c; --surface-2: #1d2a25; --ink: #e3ebe7; --muted: #92a39c; --line: #2b3a34;
+  --jade: #5cc49c; --jade-soft: #1c3a2f; --on-jade: #08120e; --seal: #ef6b5f; --warn: #f0b85a; --warn-soft: #3a2c12;
+  --tile-face: #ece6d5; --tile-edge: #b4aa92; --tile-back: #1d5a45; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1613; --surface: #15201c; --surface-2: #1d2a25; --ink: #e3ebe7; --muted: #92a39c; --line: #2b3a34;
+  --jade: #5cc49c; --jade-soft: #1c3a2f; --on-jade: #08120e; --seal: #ef6b5f; --warn: #f0b85a; --warn-soft: #3a2c12;
+  --tile-face: #ece6d5; --tile-edge: #b4aa92; --tile-back: #1d5a45; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 96px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--jade); outline-offset: 2px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 18px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .mark { width: 40px; height: 54px; flex: none; }
+.brand h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.brand p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 10px; }
+.tabs a { text-decoration: none; color: var(--muted); font-weight: 600; font-size: 14px; padding: 8px 14px; border-radius: 7px; }
+.tabs a[aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.label { font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 9px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; padding: 6px 11px; border-radius: 7px; font-weight: 600; font-size: 13.5px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--jade); color: var(--on-jade); }
+.seg button .zh { font-family: var(--f-tile); font-weight: 700; margin-right: 4px; }
+
+/* tiles */
+.tile { width: var(--tw); height: calc(var(--tw) * 1.36); background: var(--tile-face); border-radius: calc(var(--tw) * .14);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .07), 0 2px 0 var(--tile-edge), 0 4px 0 var(--tile-back), 0 5px 6px rgb(0 0 0 / .18);
+  position: relative; display: grid; place-items: center; flex: none; color: var(--t-ink); user-select: none; margin-bottom: 4px; }
+.tile svg { width: 82%; height: 82%; display: block; }
+.tile .ix { position: absolute; top: 1px; left: 3px; font: 700 calc(var(--tw) * .24)/1 var(--f-body); color: #6d6656; }
+.tile .glyph { font-family: var(--f-tile); font-weight: 900; font-size: calc(var(--tw) * .62); line-height: 1; }
+.tile .chr { display: flex; flex-direction: column; align-items: center; font-family: var(--f-tile); font-weight: 900; line-height: .95; }
+.tile .chr b { font-size: calc(var(--tw) * .4); color: var(--t-ink); }
+.tile .chr i { font-style: normal; font-size: calc(var(--tw) * .44); color: var(--t-red); }
+.tile.sideways { margin-inline: calc(var(--tw) * .18); transform: rotate(90deg) translateX(calc(var(--tw) * -.02)); }
+.tile.back { background: var(--tile-back); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15), 0 2px 0 var(--tile-edge), 0 4px 0 var(--tile-face), 0 5px 6px rgb(0 0 0 / .18); }
+.tile.mini { --tw: 24px; }
+
+.rack { display: flex; flex-direction: column; gap: 10px; }
+.rack-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.tbtn { border: 0; padding: 0; background: none; cursor: pointer; border-radius: 6px; transition: transform .12s ease; position: relative; }
+.tbtn:hover:not(:disabled) { transform: translateY(-3px); }
+.tbtn:disabled { cursor: not-allowed; opacity: .28; }
+.tbtn .left { position: absolute; right: -3px; top: -5px; background: var(--ink); color: var(--bg); font-size: 10px; font-weight: 700; border-radius: 8px; padding: 0 4px; line-height: 14px; }
+
+.modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--jade); background: var(--jade-soft); color: var(--ink); }
+.chip small { font-weight: 500; opacity: .75; margin-left: 4px; }
+
+.handbox { background: var(--surface-2); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.handline { display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: flex-end; min-height: 56px; }
+.group { display: flex; flex-direction: column; gap: 4px; }
+.group .tiles { display: flex; gap: 2px; }
+.group .cap { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.removable { border: 0; padding: 0; background: none; cursor: pointer; border-radius: 6px; }
+.removable:hover .tile { filter: brightness(.92); }
+.winslot { border: 2px dashed var(--line); border-radius: 8px; width: calc(var(--tw) + 8px); height: calc(var(--tw) * 1.36 + 10px); display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; line-height: 1.1; }
+.winslot.on { border-color: var(--seal); }
+.win-tile .tile { outline: 2px solid var(--seal); outline-offset: 2px; }
+.hint { font-size: 13.5px; color: var(--muted); }
+.hint b { color: var(--ink); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 13px; border-radius: 8px; font-weight: 600; font-size: 13.5px; cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+select.btn { appearance: auto; }
+
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.check { display: flex; gap: 9px; align-items: flex-start; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; font-size: 13.5px; }
+.check input { margin-top: 2px; accent-color: var(--jade); }
+.check.off { opacity: .45; cursor: not-allowed; }
+.check .pts { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stepper { align-self: flex-start; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.stepper button { border: 0; background: var(--surface-2); width: 32px; height: 32px; cursor: pointer; font-size: 17px; font-weight: 700; }
+.stepper output { min-width: 34px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* score slip */
+.slip { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+.total { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.total .num { font-family: var(--f-display); font-weight: 800; font-size: 64px; line-height: .9; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.total .num small { font-size: 18px; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-left: 4px; }
+.seal { width: 74px; height: 74px; border-radius: 10px; border: 2.5px solid var(--seal); color: var(--seal); display: grid; place-items: center; text-align: center;
+  font-family: var(--f-display); font-weight: 800; font-size: 12px; line-height: 1.05; transform: rotate(-6deg); flex: none; padding: 4px; }
+.seal big { display: block; font-size: 26px; }
+.seal.bad { border-color: var(--warn); color: var(--warn); }
+.fanlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.fanlist li { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+.fanlist li:first-child { border-top: 0; }
+.fanlist .no { font-size: 11px; color: var(--muted); width: 22px; font-variant-numeric: tabular-nums; flex: none; }
+.fanlist .nm { flex: 1; min-width: 0; font-weight: 600; }
+.fanlist .nm span { font-weight: 500; color: var(--muted); }
+.fanlist .p { font-variant-numeric: tabular-nums; font-weight: 700; }
+.fanlist li.flower { color: var(--muted); }
+.implied { font-size: 12.5px; color: var(--muted); }
+.msg { padding: 12px 14px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+.msg.err { background: var(--warn-soft); color: var(--ink); }
+.pay { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.pay td { padding: 6px 0; border-top: 1px solid var(--line); }
+.pay td:last-child { text-align: right; font-weight: 700; }
+.pay tr.sum td { font-weight: 700; border-top: 2px solid var(--ink); }
+.arr { display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.arr .grp { display: flex; gap: 1px; padding: 3px; border-radius: 6px; }
+.arr .grp.open { background: var(--jade-soft); }
+.waits { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.mobilebar { display: none; }
+@media (max-width: 900px) {
+  .slip { position: static; }
+  .mobilebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--ink); color: var(--bg); padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .mobilebar b { font-family: var(--f-display); font-size: 22px; }
+  .mobilebar a { color: var(--bg); font-weight: 600; }
+}
+@media (max-width: 520px) { :root { --tw: 31px; } .rack-row { gap: 4px; } .panel { padding: 14px; } .total .num { font-size: 52px; } }
+@media (max-width: 370px) { :root { --tw: 28px; } }
+
+/* tally */
+.tier { display: flex; flex-direction: column; gap: 6px; }
+.tier h3 { font-size: 15px; display: flex; align-items: baseline; gap: 8px; padding-top: 6px; }
+.tier h3 span { font-family: var(--f-body); font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.fans { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.fan { display: flex; gap: 10px; align-items: flex-start; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 11px; cursor: pointer; min-width: 0; }
+.fan .t { flex: 1; min-width: 0; }
+.fan .t b { display: block; font-size: 14px; }
+.fan .t span { display: block; font-size: 12.5px; color: var(--muted); }
+.fan .n { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 2px; width: 18px; flex: none; }
+.fan.on { border-color: var(--jade); background: var(--jade-soft); }
+.fan.ex { opacity: .5; }
+.fan .ex-note { color: var(--warn); font-weight: 600; }
+.fan .cnt { display: flex; align-items: center; gap: 4px; flex: none; }
+.fan .cnt span { min-width: 18px; text-align: center; font-weight: 700; color: var(--ink); font-size: 14px; }
+.mini-btn { border: 1px solid var(--line); background: var(--surface); width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+.notes { font-size: 13.5px; color: var(--muted); }
+.notes li { margin-bottom: 6px; }
+.notes b { color: var(--ink); }
+.scan { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 14px; align-items: center; }
+.scan .thumb { width: 88px; height: 88px; border-radius: 10px; background: var(--surface-2); object-fit: cover; display: grid; place-items: center; color: var(--muted); }
+.scan .thumb svg { width: 40px; height: 40px; }
+.scan h2 { font-size: 17px; }
+.scan .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.btn.primary { background: var(--jade); border-color: var(--jade); color: var(--on-jade); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.scanmsg { grid-column: 1 / -1; }
+.aiset summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.aigrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+.inp { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); width: 100%; min-width: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (prefers-reduced-motion: reduce) { .tbtn { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 54" aria-hidden="true"><rect x="1" y="5" width="38" height="48" rx="6" fill="var(--tile-back)"/><rect x="1" y="1" width="38" height="48" rx="6" fill="var(--tile-face)" stroke="var(--tile-edge)"/><text x="20" y="35" text-anchor="middle" font-family="Noto Serif TC, serif" font-weight="900" font-size="26" fill="var(--t-red)">中</text></svg>
+      <div>
+        <h1>Mahjong Hand Scorer</h1>
+        <p>Chinese Official rules · 81 scoring hands · 8-point minimum</p>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Views">
+      <a href="#hand" id="tab-hand">Score a hand</a>
+      <a href="#tally" id="tab-tally">Quick tally</a>
+    </nav>
+  </header>
+
+  <!-- HAND VIEW -->
+  <section id="view-hand">
+    <div class="grid">
+      <div class="stack">
+        <div class="panel scan" id="scan">
+          <div class="thumb" id="scan-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+          <div>
+            <h2>Score from a photo</h2>
+            <p class="hint" style="margin:2px 0 0">Lay the 14 tiles face up in a row, exposed sets a little apart and the winning tile at the end. AI reads the tiles and fills in the hand below for you to check.</p>
+            <div class="acts">
+              <label class="btn primary" id="scan-cam" for="photo-cam">Take photo</label>
+              <label class="btn" id="scan-lib" for="photo-lib">Choose image</label>
+              <button class="btn" id="scan-stop" hidden>Stop</button>
+            </div>
+            <input type="file" accept="image/*" capture="environment" id="photo-cam" class="sr">
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo-lib" class="sr">
+          </div>
+          <details class="aiset scanmsg" id="ai-settings">
+            <summary>AI settings <span class="hint" id="ai-status"></span></summary>
+            <div class="aigrid">
+              <label class="field"><span class="label">SumoPod API key</span><input class="inp" type="password" id="ai-key" autocomplete="off" placeholder="sk-…"></label>
+              <label class="field"><span class="label">API base URL</span><input class="inp" type="url" id="ai-base"></label>
+              <label class="field"><span class="label">Model</span><input class="inp" type="text" id="ai-model"></label>
+              <label class="field"><span class="label">Fallback model</span><input class="inp" type="text" id="ai-fallback"></label>
+            </div>
+            <p class="hint" style="margin:8px 0">The key is saved only in this browser on this device. It is never added to the page or the GitHub repository.</p>
+            <div class="acts"><button class="btn primary" id="ai-save">Save settings</button><button class="btn" id="ai-forget">Forget key</button></div>
+          </details>
+          <div class="msg scanmsg" id="scan-msg" hidden></div>
+        </div>
+        <div class="panel stack">
+          <div class="row">
+            <div class="field"><span class="label">Prevalent wind (round)</span><div class="seg" id="seg-prev"></div></div>
+            <div class="field"><span class="label">Your seat wind</span><div class="seg" id="seg-seat"></div></div>
+          </div>
+          <div class="handbox" aria-live="polite">
+            <div class="toolbar">
+              <span class="label" id="hand-count">Your hand</span>
+              <div class="row" style="gap:8px">
+                <select class="btn" id="examples" aria-label="Load an example hand"></select>
+                <button class="btn" id="clear">Clear hand</button>
+              </div>
+            </div>
+            <div class="handline" id="handline"></div>
+            <div class="hint" id="hint"></div>
+          </div>
+          <div class="field">
+            <span class="label">Tap a tile to add it as</span>
+            <div class="modes" id="modes"></div>
+          </div>
+          <div class="rack" id="rack"></div>
+        </div>
+
+        <div class="panel stack">
+          <div class="row" style="justify-content:space-between">
+            <div class="field"><span class="label">Winning tile came from</span>
+              <div class="seg" id="seg-src">
+                <button data-v="discard">A discard</button><button data-v="self">The wall (self-drawn)</button>
+              </div>
+            </div>
+            <div class="field"><span class="label">Flowers &amp; Seasons</span>
+              <div class="stepper"><button id="fl-minus" aria-label="One fewer flower">−</button><output id="fl-out">0</output><button id="fl-plus" aria-label="One more flower">+</button></div>
+            </div>
+          </div>
+          <div class="field"><span class="label">Special circumstances</span><div class="checks" id="checks"></div></div>
+        </div>
+      </div>
+
+      <aside class="panel slip stack" id="slip" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <!-- TALLY VIEW -->
+  <section id="view-tally" hidden>
+    <div class="grid">
+      <div class="panel stack">
+        <div>
+          <h2 style="font-size:20px">Tick the hands you scored</h2>
+          <p class="hint" style="margin:4px 0 0">Use this when the tiles are already on the table and you know the patterns. Hands that a bigger hand already includes are greyed out and not counted.</p>
+        </div>
+        <div id="tiers" class="stack"></div>
+        <div>
+          <h3 style="font-size:15px;margin-bottom:6px">How this scorer reads the guide</h3>
+          <ul class="notes">
+            <li><b>Minimum 8 points.</b> Flowers do not count toward it. Declaring Mahjong below 8 costs 10 points to each player.</li>
+            <li><b>Two Concealed Kongs</b> scores 8. The guide lists it in the 8-point section but shows 6 in its summary table; 8 matches the official rules.</li>
+            <li><b>Reversible Tiles</b> uses Dots 1-2-3-4-5-8-9 and Bamboo 2-4-5-6-8-9. The guide swaps the two suits, which would include tiles that are not symmetrical.</li>
+            <li><b>Dragon and Wind pungs</b> that score Dragon Pung, Prevalent Wind or Seat Wind do not also score Pung of Terminals or Honors.</li>
+            <li><b>Pairs of chows</b> (Pure Double Chow, Short Straight and similar) are each counted once, and a chow joins at most two such pairs.</li>
+            <li><b>Seven Pairs, Thirteen Orphans and Knitted hands</b> drop Concealed Hand and Single Wait as the guide says, but still score Fully Concealed Hand when self-drawn.</li>
+          </ul>
+        </div>
+      </div>
+      <aside class="panel slip stack" id="tslip"></aside>
+    </div>
+  </section>
+</div>
+<div class="mobilebar" id="mobilebar"></div>
+
+<script>
+/* Chinese Official (MCR) mahjong scoring engine.
+   Tiles are indices 0-33: 0-8 Characters 1-9, 9-17 Dots 1-9, 18-26 Bamboo 1-9,
+   27-30 East South West North, 31 Red Dragon, 32 Green Dragon, 33 White Dragon. */
+var MJ = (function () {
+  const SUIT_NAMES = ['Characters', 'Dots', 'Bamboo'];
+  const HONOR_NAMES = ['East Wind', 'South Wind', 'West Wind', 'North Wind', 'Red Dragon', 'Green Dragon', 'White Dragon'];
+  const isSuit = t => t < 27, suitOf = t => Math.floor(t / 9), numOf = t => (t % 9) + 1;
+  const isHonor = t => t >= 27, isWind = t => t >= 27 && t <= 30, isDragon = t => t >= 31;
+  const isTerm = t => t < 27 && (t % 9 === 0 || t % 9 === 8);
+  const isTH = t => isHonor(t) || isTerm(t);
+  const tileName = t => isSuit(t) ? numOf(t) + ' ' + SUIT_NAMES[suitOf(t)] : HONOR_NAMES[t - 27];
+  const ORPHANS = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
+  const GREEN = new Set([19, 20, 21, 23, 25, 32]);
+  // Vertically symmetrical tiles: Dots 1234589, Bamboo 245689, White Dragon
+  const REVERSIBLE = new Set([9, 10, 11, 12, 13, 16, 17, 19, 21, 22, 23, 25, 26, 33]);
+  const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+
+  // [number, name, points, multi?, description]
+  const FANS = [
+    [1, 'Pure Double Chow', 1, true, 'Two identical chows in the same suit.'],
+    [2, 'Mixed Double Chow', 1, true, 'Two chows of the same numbers in two different suits.'],
+    [3, 'Short Straight', 1, true, 'Two chows in the same suit that join into a run of six, such as 3-4-5 and 6-7-8.'],
+    [4, 'Two Terminal Chows', 1, true, '1-2-3 and 7-8-9 in the same suit.'],
+    [5, 'Pung of Terminals or Honors', 1, true, 'Each pung of 1s, 9s or Winds. Dragon pungs and pungs of the Seat or Prevalent Wind score their own hand instead.'],
+    [6, 'Melded Kong', 1, false, 'A kong claimed from another player, or promoted from a melded pung.'],
+    [7, 'One Voided Suit', 1, false, 'The hand has no tiles at all of one of the three suits.'],
+    [8, 'No Honors', 1, false, 'Only suit tiles; no Winds or Dragons.'],
+    [9, 'Edge Wait', 1, false, 'Winning on the 3 of 1-2 or the 7 of 8-9, when that is the only tile that completes the hand.'],
+    [10, 'Closed Wait', 1, false, 'Winning on the middle tile of a chow, such as the 5 of 4-6, when that is the only winning tile.'],
+    [11, 'Single Wait', 1, false, 'Winning on the tile that completes the pair, when that is the only winning tile.'],
+    [12, 'Self-Drawn', 1, false, 'Going out on a tile drawn from the wall. A replacement tile for a Flower counts as self-drawn.'],
+    [13, 'Flower Tiles', 1, true, 'Each Flower or Season tile. Bonus only: it does not count toward the 8-point minimum.'],
+    [14, 'Dragon Pung', 2, false, 'A pung or kong of Dragons, melded or concealed.'],
+    [15, 'Prevalent Wind', 2, false, 'A pung or kong of the Wind of the current round.'],
+    [16, 'Seat Wind', 2, false, 'A pung or kong of your own seat Wind.'],
+    [17, 'Concealed Hand', 2, false, 'No melded sets, and going out on another player’s discard.'],
+    [18, 'All Chows', 2, false, 'Four chows and a pair that is not an Honor.'],
+    [19, 'Tile Hog', 2, true, 'All four copies of a tile used in the hand without declaring them as a kong.'],
+    [20, 'Double Pung', 2, true, 'Two pungs of the same number in two suits.'],
+    [21, 'Two Concealed Pungs', 2, false, 'Two pungs (or kongs) built without claiming a discard.'],
+    [22, 'Concealed Kong', 2, false, 'A kong made from four tiles all drawn from the wall.'],
+    [23, 'All Simples', 2, false, 'No Terminals and no Honors: only 2 to 8.'],
+    [24, 'Outside Hand', 4, false, 'Every set and the pair contains a Terminal or an Honor.'],
+    [25, 'Fully Concealed Hand', 4, false, 'No melded sets, and the winning tile is drawn from the wall.'],
+    [26, 'Two Melded Kongs', 4, false, 'Two kongs claimed or promoted from melded pungs.'],
+    [27, 'Last Tile', 4, false, 'Winning on a tile when the other three copies are already visible in discards or melds.'],
+    [28, 'All Pungs', 6, false, 'Four pungs or kongs and a pair, no chows.'],
+    [29, 'Half Flush', 6, false, 'One suit plus Honors.'],
+    [30, 'Mixed Shifted Chows', 6, false, 'Three chows, one in each suit, each starting one number higher than the last.'],
+    [31, 'All Types', 6, false, 'Characters, Dots, Bamboo, Winds and Dragons all appear in the hand.'],
+    [32, 'Melded Hand', 6, false, 'All four sets melded, then going out on a discard to complete the pair.'],
+    [33, 'Two Dragons', 6, false, 'Two pungs or kongs of Dragons.'],
+    [34, 'Mixed Straight', 8, false, '1-2-3, 4-5-6 and 7-8-9, each in a different suit.'],
+    [35, 'Reversible Tiles', 8, false, 'Only tiles that look the same upside down: Dots 1-2-3-4-5-8-9, Bamboo 2-4-5-6-8-9, White Dragon.'],
+    [36, 'Mixed Triple Chow', 8, false, 'The same chow in all three suits.'],
+    [37, 'Mixed Shifted Pungs', 8, false, 'Three pungs, one in each suit, each one number higher than the last.'],
+    [38, 'Chicken Hand', 8, false, 'A complete hand that would otherwise score nothing. Flowers are added on top.'],
+    [39, 'Last Tile Draw', 8, false, 'Going out on the very last tile drawn from the wall. Self-Drawn is not added.'],
+    [40, 'Last Tile Claim', 8, false, 'Going out on the very last discard of the game.'],
+    [41, 'Out With Replacement Tile', 8, false, 'Going out on the replacement tile drawn after a kong (not after a Flower).'],
+    [42, 'Two Concealed Kongs', 8, false, 'Two kongs made entirely from tiles drawn from the wall.'],
+    [43, 'Robbing The Kong', 8, false, 'Going out on the tile another player adds to a melded pung to make a kong.'],
+    [44, 'Lesser Honors and Knitted Tiles', 12, false, '14 single tiles: Honors plus suit tiles from the 1-4-7, 2-5-8 and 3-6-9 knitted sequences, one sequence per suit.'],
+    [45, 'Knitted Straight', 12, false, '1-4-7, 2-5-8 and 3-6-9, each in a different suit, plus one set and a pair.'],
+    [46, 'Upper Four', 12, false, 'Only suit tiles 6 to 9.'],
+    [47, 'Lower Four', 12, false, 'Only suit tiles 1 to 4.'],
+    [48, 'Big Three Winds', 12, false, 'Pungs or kongs of three Winds.'],
+    [49, 'Pure Straight', 16, false, '1-2-3, 4-5-6 and 7-8-9 in one suit.'],
+    [50, 'Three-Suited Terminal Chows', 16, false, '1-2-3 and 7-8-9 in one suit, the same in a second suit, and a pair of 5s in the third.'],
+    [51, 'Pure Shifted Chows', 16, false, 'Three chows in one suit, each shifted up by one, or each by two.'],
+    [52, 'All Fives', 16, false, 'Every set and the pair contains a 5.'],
+    [53, 'Triple Pung', 16, false, 'Pungs of the same number in all three suits.'],
+    [54, 'Three Concealed Pungs', 16, false, 'Three pungs (or kongs) built without claiming a discard.'],
+    [55, 'Seven Pairs', 24, false, 'Seven pairs. Always ends on a single wait.'],
+    [56, 'Greater Honors and Knitted Tiles', 24, false, 'All seven Honors as singles plus seven knitted suit tiles.'],
+    [57, 'All Even', 24, false, 'Pungs and a pair of even numbers only (2, 4, 6, 8).'],
+    [58, 'Full Flush', 24, false, 'Only tiles of one suit.'],
+    [59, 'Pure Triple Chow', 24, false, 'Three identical chows in one suit.'],
+    [60, 'Pure Shifted Pungs', 24, false, 'Three pungs in one suit, each one number higher than the last.'],
+    [61, 'Upper Tiles', 24, false, 'Only suit tiles 7, 8 and 9.'],
+    [62, 'Middle Tiles', 24, false, 'Only suit tiles 4, 5 and 6.'],
+    [63, 'Lower Tiles', 24, false, 'Only suit tiles 1, 2 and 3.'],
+    [64, 'Four Shifted Chows', 32, false, 'Four chows in one suit, each shifted by one, or each by two.'],
+    [65, 'Three Kongs', 32, false, 'Three kongs, melded or concealed.'],
+    [66, 'All Terminals and Honors', 32, false, 'Only 1s, 9s and Honors.'],
+    [67, 'Quadruple Chow', 48, false, 'Four identical chows in one suit.'],
+    [68, 'Four Pure Shifted Pungs', 48, false, 'Four pungs in one suit, each one number higher than the last.'],
+    [69, 'All Terminals', 64, false, 'Only 1s and 9s.'],
+    [70, 'Little Four Winds', 64, false, 'Pungs of three Winds and a pair of the fourth.'],
+    [71, 'Little Three Dragons', 64, false, 'Pungs of two Dragons and a pair of the third.'],
+    [72, 'All Honors', 64, false, 'Only Winds and Dragons.'],
+    [73, 'Four Concealed Pungs', 64, false, 'Four pungs (or kongs) built without claiming a discard.'],
+    [74, 'Pure Terminal Chows', 64, false, 'Two 1-2-3s, two 7-8-9s and a pair of 5s, all one suit.'],
+    [75, 'Big Four Winds', 88, false, 'Pungs or kongs of all four Winds.'],
+    [76, 'Big Three Dragons', 88, false, 'Pungs or kongs of all three Dragons.'],
+    [77, 'All Green', 88, false, 'Only Bamboo 2, 3, 4, 6, 8 and Green Dragons.'],
+    [78, 'Nine Gates', 88, false, '1-1-1-2-3-4-5-6-7-8-9-9-9 of one suit, concealed, waiting on any tile of that suit.'],
+    [79, 'Four Kongs', 88, false, 'Four kongs, melded or concealed.'],
+    [80, 'Seven Shifted Pairs', 88, false, 'Seven consecutive pairs in one suit.'],
+    [81, 'Thirteen Orphans', 88, false, 'One of each 1, 9, Wind and Dragon, plus a second copy of any one.'],
+  ].map(([no, name, pts, multi, desc]) => ({ no, name, pts, multi, desc }));
+  const PTS = {}; FANS.forEach(f => PTS[f.name] = f.pts);
+
+  // Fans that a higher fan already includes ("implied" or "cannot be combined" in the guide).
+  const EXCL = {
+    'Big Four Winds': ['Big Three Winds', 'Little Four Winds', 'All Pungs', 'Prevalent Wind', 'Seat Wind', 'Pung of Terminals or Honors'],
+    'Big Three Dragons': ['Dragon Pung', 'Two Dragons'],
+    'All Green': ['Half Flush'],
+    'Nine Gates': ['Full Flush', 'Concealed Hand', 'Pung of Terminals or Honors', 'No Honors', 'One Voided Suit'],
+    'Four Kongs': ['Three Kongs', 'Two Melded Kongs', 'Two Concealed Kongs', 'Melded Kong', 'Concealed Kong', 'Single Wait', 'All Pungs'],
+    'Seven Shifted Pairs': ['Seven Pairs', 'Full Flush', 'Fully Concealed Hand', 'Concealed Hand', 'Single Wait', 'No Honors', 'One Voided Suit'],
+    'Thirteen Orphans': ['All Types', 'All Terminals and Honors', 'Concealed Hand', 'Single Wait'],
+    'All Terminals': ['All Terminals and Honors', 'All Pungs', 'Outside Hand', 'Pung of Terminals or Honors', 'No Honors', 'Double Pung'],
+    'Little Four Winds': ['Big Three Winds'],
+    'Little Three Dragons': ['Dragon Pung', 'Two Dragons'],
+    'All Honors': ['All Terminals and Honors', 'All Pungs', 'Outside Hand', 'Pung of Terminals or Honors'],
+    'Four Concealed Pungs': ['Three Concealed Pungs', 'Two Concealed Pungs', 'All Pungs', 'Concealed Hand', 'Fully Concealed Hand'],
+    'Pure Terminal Chows': ['Full Flush', 'All Chows', 'Seven Pairs', 'Pure Double Chow', 'Two Terminal Chows', 'No Honors', 'One Voided Suit'],
+    'Quadruple Chow': ['Pure Triple Chow', 'Pure Shifted Pungs', 'Pure Double Chow', 'Tile Hog'],
+    'Four Pure Shifted Pungs': ['Pure Shifted Pungs', 'Pure Triple Chow', 'All Pungs'],
+    'Four Shifted Chows': ['Pure Shifted Chows', 'Short Straight', 'Two Terminal Chows'],
+    'Three Kongs': ['Two Melded Kongs', 'Two Concealed Kongs', 'Melded Kong', 'Concealed Kong'],
+    'All Terminals and Honors': ['All Pungs', 'Outside Hand', 'Pung of Terminals or Honors'],
+    'Seven Pairs': ['Concealed Hand', 'Single Wait'],
+    'Greater Honors and Knitted Tiles': ['Lesser Honors and Knitted Tiles', 'All Types', 'Concealed Hand', 'Single Wait'],
+    'All Even': ['All Pungs', 'All Simples', 'No Honors'],
+    'Full Flush': ['No Honors', 'One Voided Suit'],
+    'Pure Triple Chow': ['Pure Shifted Pungs', 'Pure Double Chow'],
+    'Pure Shifted Pungs': ['Pure Triple Chow'],
+    'Upper Tiles': ['Upper Four', 'No Honors'],
+    'Middle Tiles': ['All Simples', 'No Honors'],
+    'Lower Tiles': ['Lower Four', 'No Honors'],
+    'Pure Straight': ['Short Straight', 'Two Terminal Chows'],
+    'Three-Suited Terminal Chows': ['All Chows', 'Two Terminal Chows', 'Mixed Double Chow', 'No Honors'],
+    'All Fives': ['All Simples'],
+    'Triple Pung': ['Double Pung'],
+    'Three Concealed Pungs': ['Two Concealed Pungs'],
+    'Lesser Honors and Knitted Tiles': ['All Types', 'Concealed Hand', 'Single Wait'],
+    'Upper Four': ['No Honors'],
+    'Lower Four': ['No Honors'],
+    'Big Three Winds': [],
+    'Half Flush': ['One Voided Suit'],
+    'Melded Hand': ['Single Wait'],
+    'Two Dragons': ['Dragon Pung'],
+    'Fully Concealed Hand': ['Self-Drawn', 'Concealed Hand'],
+    'Two Melded Kongs': ['Melded Kong'],
+    'Last Tile Draw': ['Self-Drawn'],
+    'Out With Replacement Tile': ['Self-Drawn'],
+    'Robbing The Kong': ['Last Tile'],
+    'All Chows': ['No Honors'],
+    'All Simples': ['No Honors'],
+  };
+
+  const counts = list => { const c = new Array(34).fill(0); list.forEach(t => c[t]++); return c; };
+  const sum = c => c.reduce((a, b) => a + b, 0);
+
+  function decompose(c0, need) {
+    const c = c0.slice(), out = [], seen = new Set(), sets = [];
+    (function rec(pair) {
+      let i = 0; while (i < 34 && c[i] === 0) i++;
+      if (i === 34) {
+        if (pair !== null && sets.length === need) {
+          const key = pair + '|' + sets.map(s => s.type[0] + s.tile).sort().join(',');
+          if (!seen.has(key)) { seen.add(key); out.push({ pair, sets: sets.map(s => ({ ...s })) }); }
+        }
+        return;
+      }
+      if (sets.length > need) return;
+      if (pair === null && c[i] >= 2) { c[i] -= 2; rec(i); c[i] += 2; }
+      if (c[i] >= 3) { c[i] -= 3; sets.push({ type: 'pung', tile: i }); rec(pair); sets.pop(); c[i] += 3; }
+      if (i < 27 && i % 9 <= 6 && c[i + 1] > 0 && c[i + 2] > 0) {
+        c[i]--; c[i + 1]--; c[i + 2]--; sets.push({ type: 'chow', tile: i }); rec(pair); sets.pop(); c[i]++; c[i + 1]++; c[i + 2]++;
+      }
+    })(null);
+    return out;
+  }
+  const knitTiles = p => { const r = []; for (let s = 0; s < 3; s++) for (let k = 0; k < 3; k++) r.push(s * 9 + p[s] + 3 * k); return r; };
+  const isSevenPairs = c => sum(c) === 14 && c.every(x => x === 0 || x === 2 || x === 4);
+  const isOrphans = c => sum(c) === 14 && ORPHANS.every(t => c[t] >= 1) && c.every((x, t) => x === 0 || ORPHANS.includes(t));
+  function honorsKnitted(c) {
+    if (sum(c) !== 14 || c.some(x => x > 1)) return null;
+    for (const p of PERMS) {
+      let ok = true;
+      for (let t = 0; t < 27; t++) if (c[t] && (t % 9) % 3 !== p[suitOf(t)]) { ok = false; break; }
+      if (ok) {
+        const honors = c.slice(27).filter(x => x).length;
+        return { perm: p, greater: honors === 7, fullKnit: knitTiles(p).every(t => c[t]) };
+      }
+    }
+    return null;
+  }
+  function knittedSplits(c, m) {
+    const out = [];
+    if (m > 1) return out;
+    for (const p of PERMS) {
+      const kt = knitTiles(p);
+      if (!kt.every(t => c[t] > 0)) continue;
+      const c2 = c.slice(); kt.forEach(t => c2[t]--);
+      decompose(c2, 1 - m).forEach(d => out.push({ perm: p, d }));
+    }
+    return out;
+  }
+  function isWinning(c, m) {
+    if (sum(c) !== 14 - 3 * m) return false;
+    if (decompose(c, 4 - m).length) return true;
+    if (m === 0 && (isSevenPairs(c) || isOrphans(c) || honorsKnitted(c))) return true;
+    return knittedSplits(c, m).length > 0;
+  }
+
+  // ---- combination fans among sets ----
+  function chowPairFan(a, b) {
+    if (a.s === b.s) {
+      if (a.n === b.n) return 'Pure Double Chow';
+      if (Math.abs(a.n - b.n) === 3) return 'Short Straight';
+      if ((a.n === 1 && b.n === 7) || (a.n === 7 && b.n === 1)) return 'Two Terminal Chows';
+      return null;
+    }
+    return a.n === b.n ? 'Mixed Double Chow' : null;
+  }
+  function chowTripleFan(a, b, c) {
+    const ns = [a.n, b.n, c.n].sort((x, y) => x - y);
+    if (a.s === b.s && b.s === c.s) {
+      if (ns[0] === 1 && ns[1] === 4 && ns[2] === 7) return 'Pure Straight';
+      if (ns[0] === ns[2]) return 'Pure Triple Chow';
+      const d = ns[1] - ns[0];
+      if ((d === 1 || d === 2) && ns[2] - ns[1] === d) return 'Pure Shifted Chows';
+      return null;
+    }
+    if (a.s !== b.s && b.s !== c.s && a.s !== c.s) {
+      if (ns[0] === 1 && ns[1] === 4 && ns[2] === 7) return 'Mixed Straight';
+      if (ns[0] === ns[2]) return 'Mixed Triple Chow';
+      if (ns[1] - ns[0] === 1 && ns[2] - ns[1] === 1) return 'Mixed Shifted Chows';
+    }
+    return null;
+  }
+  // Chows may be combined with each other at most once per pair, without loops (MCR "account once").
+  function bestPairSelection(items, pairFn) {
+    const pairs = [];
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const f = pairFn(items[i], items[j]); if (f) pairs.push([i, j, f]);
+    }
+    let best = [];
+    for (let mask = 1; mask < (1 << pairs.length); mask++) {
+      const chosen = pairs.filter((_, k) => mask & (1 << k));
+      if (chosen.length <= best.length || chosen.length > items.length - 1) continue;
+      const parent = items.map((_, i) => i), deg = items.map(() => 0);
+      const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
+      let ok = true;
+      for (const [i, j] of chosen) {
+        if (++deg[i] > 2 || ++deg[j] > 2) { ok = false; break; }
+        const a = find(i), b = find(j); if (a === b) { ok = false; break; } parent[a] = b;
+      }
+      if (ok) best = chosen;
+    }
+    return best.map(p => p[2]);
+  }
+  function chowFans(chows, pair) {
+    if (chows.length < 2) return [];
+    if (chows.length === 4) {
+      const ss = chows.map(c => c.s), ns = chows.map(c => c.n).sort((a, b) => a - b);
+      const sameSuit = ss.every(s => s === ss[0]);
+      if (sameSuit && ns[0] === ns[3]) return ['Quadruple Chow'];
+      if (sameSuit) { const d = ns[1] - ns[0]; if ((d === 1 || d === 2) && ns[2] - ns[1] === d && ns[3] - ns[2] === d) return ['Four Shifted Chows']; }
+      if (pair !== null && isSuit(pair) && numOf(pair) === 5) {
+        if (sameSuit && ss[0] === suitOf(pair) && ns.join() === '1,1,7,7') return ['Pure Terminal Chows'];
+        const bySuit = {}; chows.forEach(c => (bySuit[c.s] = bySuit[c.s] || []).push(c.n));
+        const keys = Object.keys(bySuit);
+        if (keys.length === 2 && keys.every(k => bySuit[k].sort().join() === '1,7') && !keys.includes(String(suitOf(pair))))
+          return ['Three-Suited Terminal Chows'];
+      }
+    }
+    let best = [], bestPts = -1;
+    const val = l => l.reduce((a, n) => a + PTS[n], 0);
+    for (let i = 0; i < chows.length; i++) for (let j = i + 1; j < chows.length; j++) for (let k = j + 1; k < chows.length; k++) {
+      const f = chowTripleFan(chows[i], chows[j], chows[k]); if (!f) continue;
+      const list = [f];
+      const rest = chows.findIndex((_, x) => x !== i && x !== j && x !== k);
+      if (rest >= 0) {
+        for (const x of [i, j, k]) { const pf = chowPairFan(chows[rest], chows[x]); if (pf) { list.push(pf); break; } }
+      }
+      if (val(list) > bestPts) { best = list; bestPts = val(list); }
+    }
+    const pl = bestPairSelection(chows, chowPairFan);
+    if (val(pl) > bestPts) best = pl;
+    return best;
+  }
+  function pungFans(pungs) {
+    const p = pungs.filter(x => x.s !== null);
+    if (p.length < 2) return [];
+    if (p.length === 4) {
+      const ns = p.map(x => x.n).sort((a, b) => a - b);
+      if (p.every(x => x.s === p[0].s) && ns[1] === ns[0] + 1 && ns[2] === ns[1] + 1 && ns[3] === ns[2] + 1) return ['Four Pure Shifted Pungs'];
+    }
+    let best = [], bestPts = -1;
+    const val = l => l.reduce((a, n) => a + PTS[n], 0);
+    for (let i = 0; i < p.length; i++) for (let j = i + 1; j < p.length; j++) for (let k = j + 1; k < p.length; k++) {
+      const a = p[i], b = p[j], c = p[k], ns = [a.n, b.n, c.n].sort((x, y) => x - y);
+      const consecutive = ns[1] === ns[0] + 1 && ns[2] === ns[1] + 1;
+      const allSame = a.s === b.s && b.s === c.s, allDiff = a.s !== b.s && b.s !== c.s && a.s !== c.s;
+      let f = null;
+      if (allSame && consecutive) f = 'Pure Shifted Pungs';
+      else if (allDiff && ns[0] === ns[2]) f = 'Triple Pung';
+      else if (allDiff && consecutive) f = 'Mixed Shifted Pungs';
+      if (!f) continue;
+      const list = [f];
+      const rest = p.findIndex((_, x) => x !== i && x !== j && x !== k);
+      if (rest >= 0 && [a, b, c].some(q => q.n === p[rest].n && q.s !== p[rest].s)) list.push('Double Pung');
+      if (val(list) > bestPts) { best = list; bestPts = val(list); }
+    }
+    const pl = bestPairSelection(p, (a, b) => a.n === b.n && a.s !== b.s ? 'Double Pung' : null);
+    if (val(pl) > bestPts) best = pl;
+    return best;
+  }
+
+  // ---- score one interpretation of the hand ----
+  function scoreHand(h, ctx) {
+    const F = new Map();
+    const add = (n, k = 1) => { if (k > 0) F.set(n, (F.get(n) || 0) + k); };
+    const tc = ctx.allCounts, self = ctx.self;
+    const present = tc.map(x => x > 0);
+    const tilesIn = pred => present.every((p, t) => !p || pred(t));
+    const suits = new Set(); let honor = false, wind = false, dragon = false;
+    present.forEach((p, t) => { if (!p) return; if (isSuit(t)) suits.add(suitOf(t)); else { honor = true; if (isWind(t)) wind = true; else dragon = true; } });
+
+    // Whole-hand tile patterns
+    if (!honor) add('No Honors');
+    if (suits.size === 2) add('One Voided Suit');
+    if (suits.size === 1) add(honor ? 'Half Flush' : 'Full Flush');
+    if (suits.size === 0) add('All Honors');
+    if (tilesIn(t => isSuit(t) && !isTerm(t))) add('All Simples');
+    if (tilesIn(isTerm)) add('All Terminals');
+    if (tilesIn(isTH)) add('All Terminals and Honors');
+    if (tilesIn(t => isSuit(t) && numOf(t) >= 7)) add('Upper Tiles');
+    else if (tilesIn(t => isSuit(t) && numOf(t) >= 6)) add('Upper Four');
+    if (tilesIn(t => isSuit(t) && numOf(t) >= 4 && numOf(t) <= 6)) add('Middle Tiles');
+    if (tilesIn(t => isSuit(t) && numOf(t) <= 3)) add('Lower Tiles');
+    else if (tilesIn(t => isSuit(t) && numOf(t) <= 4)) add('Lower Four');
+    if (tilesIn(t => GREEN.has(t))) add('All Green');
+    if (tilesIn(t => REVERSIBLE.has(t))) add('Reversible Tiles');
+    if (suits.size === 3 && wind && dragon) add('All Types');
+
+    // How the hand was won
+    const hasOpen = (h.sets || []).some(s => s.open);
+    if (!hasOpen) add(self ? 'Fully Concealed Hand' : 'Concealed Hand');
+    if (self) add('Self-Drawn');
+    if (ctx.lastTile) add('Last Tile');
+    if (self && ctx.lastDraw) add('Last Tile Draw');
+    if (!self && ctx.lastClaim) add('Last Tile Claim');
+    if (self && ctx.repl) add('Out With Replacement Tile');
+    if (!self && ctx.rob) add('Robbing The Kong');
+
+    const kongTiles = new Set((h.sets || []).filter(s => s.type === 'kong').map(s => s.tile));
+    add('Tile Hog', tc.filter((x, t) => x === 4 && !kongTiles.has(t)).length);
+
+    if (h.kind === 'pairs') {
+      const ps = []; tc.forEach((x, t) => { for (let k = 0; k < x / 2; k++) ps.push(t); });
+      const s0 = suitOf(ps[0]);
+      if (ps.every(t => isSuit(t) && suitOf(t) === s0) && new Set(ps).size === 7 && numOf(ps[6]) - numOf(ps[0]) === 6) add('Seven Shifted Pairs');
+      else add('Seven Pairs');
+    } else if (h.kind === 'orphans') {
+      add('Thirteen Orphans');
+    } else if (h.kind === 'hk') {
+      add(h.greater ? 'Greater Honors and Knitted Tiles' : 'Lesser Honors and Knitted Tiles');
+      if (h.fullKnit) add('Knitted Straight');
+    } else {
+      // standard and knitted-straight hands
+      const sets = h.sets, pair = h.pair;
+      if (h.kind === 'knitted') add('Knitted Straight');
+      const pungs = sets.filter(s => s.type !== 'chow'), chows = sets.filter(s => s.type === 'chow');
+      const windP = pungs.filter(s => isWind(s.tile)), dragP = pungs.filter(s => isDragon(s.tile));
+      if (windP.length === 4) add('Big Four Winds');
+      else if (windP.length === 3) add(isWind(pair) ? 'Little Four Winds' : 'Big Three Winds');
+      if (dragP.length === 3) add('Big Three Dragons');
+      else if (dragP.length === 2) add(isDragon(pair) ? 'Little Three Dragons' : 'Two Dragons');
+      else if (dragP.length === 1) add('Dragon Pung');
+      if (windP.some(s => s.tile === ctx.prev)) add('Prevalent Wind');
+      if (windP.some(s => s.tile === ctx.seat)) add('Seat Wind');
+      add('Pung of Terminals or Honors', pungs.filter(s => isTerm(s.tile) ||
+        (isWind(s.tile) && windP.length < 3 && s.tile !== ctx.prev && s.tile !== ctx.seat)).length);
+
+      if (pungs.length === 4) add('All Pungs');
+      if (chows.length === 4 && !isHonor(pair)) add('All Chows');
+      if (h.kind === 'standard') {
+        const hasTH = s => s.type === 'chow' ? (numOf(s.tile) === 1 || numOf(s.tile) === 7) : isTH(s.tile);
+        const has5 = s => isSuit(s.tile) && (s.type === 'chow' ? numOf(s.tile) >= 3 && numOf(s.tile) <= 5 : numOf(s.tile) === 5);
+        if (sets.every(hasTH) && isTH(pair)) add('Outside Hand');
+        if (sets.every(has5) && isSuit(pair) && numOf(pair) === 5) add('All Fives');
+        if (pungs.length === 4 && tilesIn(t => isSuit(t) && numOf(t) % 2 === 0)) add('All Even');
+      }
+      chowFans(chows.map(s => ({ s: suitOf(s.tile), n: numOf(s.tile) })), pair).forEach(n => add(n));
+      pungFans(pungs.map(s => ({ s: isSuit(s.tile) ? suitOf(s.tile) : null, n: numOf(s.tile) }))).forEach(n => add(n));
+
+      const mk = sets.filter(s => s.type === 'kong' && s.open).length, ck = sets.filter(s => s.type === 'kong' && !s.open).length;
+      if (mk + ck === 4) add('Four Kongs');
+      else if (mk + ck === 3) add('Three Kongs');
+      else if (ck === 2) add('Two Concealed Kongs');
+      else if (mk === 2) add('Two Melded Kongs');
+      else { if (mk === 1) add('Melded Kong'); if (ck === 1) add('Concealed Kong'); }
+
+      const cp = sets.filter((s, i) => s.type !== 'chow' && !s.open && !(i === h.winEl && !self)).length;
+      if (cp === 4) add('Four Concealed Pungs'); else if (cp === 3) add('Three Concealed Pungs'); else if (cp === 2) add('Two Concealed Pungs');
+
+      if (h.kind === 'standard' && ctx.melds === 0 && ctx.nineGates) add('Nine Gates');
+      if (h.kind === 'standard' && ctx.melds === 4 && sets.every(s => s.open) && !self) add('Melded Hand');
+
+      if (ctx.waits === 1) {
+        if (h.winEl === 'pair') add('Single Wait');
+        else if (typeof h.winEl === 'number' && sets[h.winEl].type === 'chow') {
+          const pos = ctx.win - sets[h.winEl].tile, n = numOf(sets[h.winEl].tile);
+          if (pos === 1) add('Closed Wait');
+          else if ((pos === 2 && n === 1) || (pos === 0 && n === 7)) add('Edge Wait');
+        }
+      }
+    }
+
+    // apply exclusions, highest value first
+    const names = [...F.keys()].sort((a, b) => PTS[b] - PTS[a]);
+    const excluded = new Map();
+    for (const n of names) {
+      if (excluded.has(n)) continue;
+      (EXCL[n] || []).forEach(x => { if (F.has(x) && !excluded.has(x)) excluded.set(x, n); });
+    }
+    let fans = names.filter(n => !excluded.has(n)).map(n => ({ name: n, pts: PTS[n], count: F.get(n) }));
+    if (!fans.length) fans = [{ name: 'Chicken Hand', pts: 8, count: 1 }];
+    const total = fans.reduce((a, f) => a + f.pts * f.count, 0);
+    return { fans, total, implied: [...excluded].map(([n, by]) => ({ name: n, by })) };
+  }
+
+  function evaluate(st) {
+    const m = st.melds.length;
+    const need = 13 - 3 * m;
+    if (st.hand.length !== need || st.win === null) return { incomplete: true, need: need - st.hand.length, needWin: st.win === null };
+    const conc = counts([...st.hand, st.win]), h13 = counts(st.hand);
+    const meldSets = st.melds.map(x => ({ type: x.type === 'chow' ? 'chow' : x.type === 'pung' ? 'pung' : 'kong', tile: x.tile, open: x.type !== 'ckong' }));
+    const all = conc.slice();
+    meldSets.forEach(s => { if (s.type === 'chow') { all[s.tile]++; all[s.tile + 1]++; all[s.tile + 2]++; } else all[s.tile] += s.type === 'kong' ? 4 : 3; });
+    const over = all.findIndex(x => x > 4);
+    if (over >= 0) return { error: 'There are only four ' + tileName(over) + ' tiles in a set.' };
+    const used13 = all.slice(); used13[st.win]--;
+    const waits = [];
+    for (let t = 0; t < 34; t++) { if (used13[t] >= 4) continue; const c = h13.slice(); c[t]++; if (isWinning(c, m)) waits.push(t); }
+    if (!isWinning(conc, m)) return { error: 'These tiles don’t make a winning hand. A hand needs four sets and a pair (or a special hand such as Seven Pairs).', waits };
+
+    let nineGates = false;
+    if (m === 0) {
+      const s0 = st.hand[0] < 27 ? suitOf(st.hand[0]) : -1;
+      if (s0 >= 0 && [...st.hand, st.win].every(t => t < 27 && suitOf(t) === s0)) {
+        const pat = [3, 1, 1, 1, 1, 1, 1, 1, 3];
+        nineGates = pat.every((x, i) => h13[s0 * 9 + i] === x);
+      }
+    }
+    const ctx = { ...st, allCounts: all, melds: m, waits: waits.length, nineGates };
+    const cands = [];
+    const placements = (sets, pair, extra) => {
+      const out = [];
+      if (pair === st.win) out.push({ winEl: 'pair' });
+      sets.forEach((s, i) => {
+        if (s.open || i < m) return;
+        const inSet = s.type === 'chow' ? (st.win >= s.tile && st.win <= s.tile + 2) : s.tile === st.win;
+        if (inSet && !out.some(o => typeof o.winEl === 'number' && sets[o.winEl].type === s.type && sets[o.winEl].tile === s.tile)) out.push({ winEl: i });
+      });
+      if (extra) out.push({ winEl: 'knit' });
+      return out;
+    };
+    decompose(conc, 4 - m).forEach(d => {
+      const sets = [...meldSets, ...d.sets.map(s => ({ ...s, open: false }))];
+      placements(sets, d.pair).forEach(p => cands.push({ kind: 'standard', sets, pair: d.pair, winEl: p.winEl }));
+    });
+    knittedSplits(conc, m).forEach(({ perm, d }) => {
+      const sets = [...meldSets, ...d.sets.map(s => ({ ...s, open: false }))];
+      const inKnit = knitTiles(perm).includes(st.win);
+      placements(sets, d.pair, inKnit).forEach(p => cands.push({ kind: 'knitted', sets, pair: d.pair, perm, winEl: p.winEl }));
+    });
+    if (m === 0) {
+      if (isSevenPairs(conc)) cands.push({ kind: 'pairs', sets: [] });
+      if (isOrphans(conc)) cands.push({ kind: 'orphans', sets: [] });
+      const hk = honorsKnitted(conc); if (hk) cands.push({ kind: 'hk', sets: [], ...hk });
+    }
+    let best = null;
+    cands.forEach(c => { const r = scoreHand(c, ctx); if (!best || r.total > best.total) best = { ...r, hand: c }; });
+    return { ...best, waits };
+  }
+
+  return { FANS, PTS, EXCL, evaluate, tileName, isSuit, suitOf, numOf, knitTiles };
+})();
+
+
+</script>
+<script>
+(function () {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const ZH_NUM = '一二三四五六七八九';
+  const HONOR_GLYPH = ['東', '南', '西', '北', '中', '發', '白'];
+  const WIND_NAMES = ['East', 'South', 'West', 'North'];
+
+  // ---------- tile faces ----------
+  const DOTS = {
+    1: [[15, 20, 9]], 2: [[15, 11], [15, 29]], 3: [[8, 9], [15, 20], [22, 31]], 4: [[9, 11], [21, 11], [9, 29], [21, 29]],
+    5: [[8, 9], [22, 9], [15, 20], [8, 31], [22, 31]], 6: [[9, 8], [21, 8], [9, 21], [21, 21], [9, 32], [21, 32]],
+    7: [[6, 6], [15, 10], [24, 14], [9, 24], [21, 24], [9, 34], [21, 34]], 8: [[9, 6], [21, 6], [9, 15.3], [21, 15.3], [9, 24.6], [21, 24.6], [9, 34], [21, 34]],
+    9: [[6, 8], [15, 8], [24, 8], [6, 20], [15, 20], [24, 20], [6, 32], [15, 32], [24, 32]]
+  };
+  const BAMS = {
+    2: [[15, 10], [15, 30]], 3: [[15, 10], [9, 30], [21, 30]], 4: [[9, 10], [21, 10], [9, 30], [21, 30]],
+    5: [[8, 10], [22, 10], [15, 20, 'r'], [8, 30], [22, 30]], 6: [[7, 10], [15, 10], [23, 10], [7, 30], [15, 30], [23, 30]],
+    7: [[15, 7, 'r'], [7, 21], [15, 21], [23, 21], [7, 34], [15, 34], [23, 34]], 8: [[6, 11], [12, 11], [18, 11], [24, 11], [6, 29], [12, 29], [18, 29], [24, 29]],
+    9: [[7, 8, 'r'], [15, 8], [23, 8, 'r'], [7, 20], [15, 20, 'r'], [23, 20], [7, 32, 'r'], [15, 32], [23, 32, 'r']]
+  };
+  function face(t) {
+    if (t < 9) return `<span class="ix">${t + 1}</span><span class="chr"><b>${ZH_NUM[t]}</b><i>萬</i></span>`;
+    if (t < 18) {
+      const n = t - 8, r = n >= 7 ? 3.6 : n >= 5 ? 4.1 : n === 1 ? 9 : 5;
+      const circles = DOTS[n].map(([x, y, big], i) => {
+        const rr = big || r, col = n === 1 ? 'var(--t-red)' : (n === 5 && i === 2) || (n === 9 && i >= 3 && i <= 5) || (n === 6 && i >= 2) || (n === 7 && i < 3) ? 'var(--t-red)' : (i % 2 ? 'var(--t-green)' : 'var(--t-blue)');
+        return `<circle cx="${x}" cy="${y}" r="${rr}" fill="none" stroke="${col}" stroke-width="1.6"/><circle cx="${x}" cy="${y}" r="${rr * .42}" fill="${col}"/>`;
+      }).join('');
+      return `<span class="ix">${n}</span><svg viewBox="0 0 30 40" aria-hidden="true">${circles}</svg>`;
+    }
+    if (t < 27) {
+      const n = t - 17;
+      if (n === 1) return `<span class="ix">1</span><svg viewBox="0 0 30 40" aria-hidden="true"><ellipse cx="15" cy="23" rx="8" ry="11" fill="var(--t-green)"/><circle cx="15" cy="10" r="5" fill="var(--t-red)"/><path d="M15 34 l-6 5 h12z" fill="var(--t-green)"/><circle cx="16.5" cy="9" r="1.2" fill="#fbf8ee"/></svg>`;
+      const h = n >= 7 ? 10 : 13;
+      const sticks = BAMS[n].map(([x, y, red]) => {
+        const col = red ? 'var(--t-red)' : (n === 8 ? 'var(--t-green)' : 'var(--t-green)');
+        return `<rect x="${x - 2}" y="${y - h / 2}" width="4" height="${h}" rx="2" fill="${col}"/><rect x="${x - 2.6}" y="${y - .8}" width="5.2" height="1.6" rx=".8" fill="${col}"/>`;
+      }).join('');
+      return `<span class="ix">${n}</span><svg viewBox="0 0 30 40" aria-hidden="true">${sticks}</svg>`;
+    }
+    if (t === 33) return `<svg viewBox="0 0 30 40" aria-hidden="true"><rect x="5" y="6" width="20" height="28" rx="2" fill="none" stroke="var(--t-blue)" stroke-width="2.4"/><rect x="9" y="10" width="12" height="20" rx="1" fill="none" stroke="var(--t-blue)" stroke-width="1"/></svg>`;
+    const col = t === 31 ? 'var(--t-red)' : t === 32 ? 'var(--t-green)' : 'var(--t-ink)';
+    return `<span class="glyph" style="color:${col}">${HONOR_GLYPH[t - 27]}</span>`;
+  }
+  const tileHTML = (t, cls = '') => `<span class="tile ${cls}" role="img" aria-label="${esc(MJ.tileName(t))}">${face(t)}</span>`;
+  const backHTML = (cls = '') => `<span class="tile back ${cls}" role="img" aria-label="Face-down tile"></span>`;
+
+  // ---------- state ----------
+  const blank = () => ({ prev: 27, seat: 27, melds: [], hand: [], win: null, mode: 'hand', self: false, lastTile: false, lastDraw: false, lastClaim: false, repl: false, rob: false, flowers: 0 });
+  let S = blank();
+  const T = s => s.split(' ').filter(Boolean).map(x => { const h = { E: 27, S: 28, W: 29, N: 30, C: 31, F: 32, P: 33 }; return h[x] !== undefined ? h[x] : { m: 0, p: 9, s: 18 }[x[1]] + (+x[0]) - 1; });
+  const EXAMPLES = [
+    { name: 'Pure Straight in Dots', prev: 27, seat: 27, hand: '1p 2p 3p 4p 5p 6p 7p 8p E E E 5m 5m', win: '9p' },
+    { name: 'Seven Pairs, self-drawn', prev: 28, seat: 29, hand: '2m 2m 5m 5m 3p 3p 7p 7p 4s 4s 8s 8s 6s', win: '6s', self: true },
+    { name: 'Little Three Dragons', prev: 28, seat: 28, melds: [['pung', 'C'], ['pung', 'F']], hand: 'P P 2m 3m 4m 7s 8s', win: '9s' },
+    { name: 'Mixed Straight, edge wait', prev: 27, seat: 30, hand: '1m 2m 4p 5p 6p 7s 8s 9s 2s 3s 4s C C', win: '3m' },
+    { name: 'Kongs and pungs', prev: 27, seat: 28, melds: [['mkong', '1m'], ['ckong', '1p']], hand: '5s 5s 5s 9m 9m 9m E', win: 'E', self: true, flowers: 2 },
+    { name: 'Thirteen Orphans', prev: 29, seat: 27, hand: '1m 9m 1p 9p 1s 9s E S W N C F P', win: '1m', self: true },
+    { name: 'Chicken Hand', prev: 28, seat: 29, melds: [['chow', '2m'], ['pung', '6p'], ['chow', '5s']], hand: 'E E 2s 3s', win: '1s', flowers: 1 },
+  ];
+  function loadExample(i) {
+    const e = EXAMPLES[i]; S = blank();
+    Object.assign(S, { prev: e.prev, seat: e.seat, self: !!e.self, flowers: e.flowers || 0 });
+    S.melds = (e.melds || []).map(([type, t]) => ({ type, tile: T(t)[0] }));
+    S.hand = T(e.hand).sort((a, b) => a - b); S.win = T(e.win)[0]; S.mode = 'hand';
+  }
+  try { const saved = JSON.parse(localStorage.getItem('mj-hand') || 'null'); if (saved && Array.isArray(saved.hand)) S = Object.assign(blank(), saved); else loadExample(0); } catch (e) { loadExample(0); }
+  const save = () => { try { localStorage.setItem('mj-hand', JSON.stringify(S)); } catch (e) { } };
+
+  const need = () => 13 - 3 * S.melds.length;
+  function usage() {
+    const c = new Array(34).fill(0);
+    S.hand.forEach(t => c[t]++); if (S.win !== null) c[S.win]++;
+    S.melds.forEach(m => { if (m.type === 'chow') { c[m.tile]++; c[m.tile + 1]++; c[m.tile + 2]++; } else c[m.tile] += m.type === 'pung' ? 3 : 4; });
+    return c;
+  }
+  const MODES = [
+    { id: 'hand', label: 'Hidden tile', sub: 'in hand' },
+    { id: 'win', label: 'Winning tile' },
+    { id: 'chow', label: 'Exposed chow', sub: 'tap lowest' },
+    { id: 'pung', label: 'Exposed pung' },
+    { id: 'mkong', label: 'Exposed kong' },
+    { id: 'ckong', label: 'Concealed kong' },
+  ];
+  let flash = '';
+  function canAdd(t, u) {
+    switch (S.mode) {
+      case 'hand': return S.hand.length < need() && u[t] < 4;
+      case 'win': return u[t] - (S.win === t ? 1 : 0) < 4;
+      case 'chow': return S.melds.length < 4 && t < 27 && t % 9 <= 6 && u[t] < 4 && u[t + 1] < 4 && u[t + 2] < 4;
+      case 'pung': return S.melds.length < 4 && u[t] <= 1;
+      default: return S.melds.length < 4 && u[t] === 0;
+    }
+  }
+  function tap(t) {
+    flash = '';
+    if (S.mode === 'hand') {
+      S.hand.push(t); S.hand.sort((a, b) => a - b);
+      if (S.hand.length === need() && S.win === null) S.mode = 'win';
+    } else if (S.mode === 'win') {
+      S.win = t;
+    } else {
+      if (S.hand.length > need() - 3) { flash = 'Remove ' + (S.hand.length - (need() - 3)) + ' hidden tile(s) first: each exposed set takes three tiles out of your hand.'; return render(); }
+      S.melds.push({ type: S.mode, tile: t });
+    }
+    save(); render();
+  }
+
+  // ---------- render: hand view ----------
+  function segWinds(el, key) {
+    el.innerHTML = WIND_NAMES.map((w, i) => `<button data-v="${27 + i}" aria-pressed="${S[key] === 27 + i}"><span class="zh">${HONOR_GLYPH[i]}</span>${w}</button>`).join('');
+  }
+  function renderHand() {
+    segWinds($('#seg-prev'), 'prev'); segWinds($('#seg-seat'), 'seat');
+    const u = usage();
+    $('#modes').innerHTML = MODES.map(m => `<button class="chip" data-mode="${m.id}" aria-pressed="${S.mode === m.id}">${m.label}${m.sub ? `<small>${m.sub}</small>` : ''}</button>`).join('');
+    const rows = [[0, 9], [9, 18], [18, 27], [27, 34]];
+    $('#rack').innerHTML = rows.map(([a, b], r) => `<div><div class="label" style="margin-bottom:5px">${['Characters', 'Dots', 'Bamboo', 'Winds & Dragons'][r]}</div><div class="rack-row">` +
+      Array.from({ length: b - a }, (_, k) => { const t = a + k, ok = canAdd(t, u), left = 4 - u[t];
+        return `<button class="tbtn" data-t="${t}" ${ok ? '' : 'disabled'} title="${esc(MJ.tileName(t))} · ${left} left">${tileHTML(t)}${left < 4 ? `<span class="left">${left}</span>` : ''}</button>`; }).join('') + `</div></div>`).join('');
+
+    const groups = S.melds.map((m, i) => {
+      let tiles;
+      if (m.type === 'chow') tiles = [m.tile, m.tile + 1, m.tile + 2].map(t => tileHTML(t)).join('');
+      else if (m.type === 'pung') tiles = [0, 1, 2].map(() => tileHTML(m.tile)).join('');
+      else if (m.type === 'mkong') tiles = [0, 1, 2, 3].map(() => tileHTML(m.tile)).join('');
+      else tiles = tileHTML(m.tile) + backHTML() + backHTML() + tileHTML(m.tile);
+      const cap = { chow: 'Chow', pung: 'Pung', mkong: 'Kong', ckong: 'Hidden kong' }[m.type];
+      return `<button class="removable group" data-meld="${i}" title="Remove this set"><span class="cap">${cap} ✕</span><span class="tiles">${tiles}</span></button>`;
+    });
+    const hidden = `<div class="group"><span class="cap">Hidden · ${S.hand.length}/${need()}</span><span class="tiles" style="flex-wrap:wrap">${S.hand.map((t, i) => `<button class="removable" data-hand="${i}" title="Remove ${esc(MJ.tileName(t))}">${tileHTML(t)}</button>`).join('') || '<span class="hint">None yet</span>'}</span></div>`;
+    const win = `<div class="group"><span class="cap" style="color:var(--seal)">Winning tile</span>${S.win !== null ? `<button class="removable win-tile" data-win="1" title="Remove winning tile">${tileHTML(S.win)}</button>` : `<span class="winslot ${S.mode === 'win' ? 'on' : ''}">tap a<br>tile</span>`}</div>`;
+    $('#handline').innerHTML = groups.join('') + hidden + win;
+    const left = need() - S.hand.length;
+    $('#hand-count').textContent = `Your hand · ${S.hand.length + S.melds.length * 3 + (S.win !== null ? 1 : 0)} of 14 tiles`;
+    let hint;
+    if (flash) hint = flash;
+    else if (left > 0) hint = `Add <b>${left}</b> more hidden tile${left > 1 ? 's' : ''}, or switch to an exposed set above. Tap any tile in your hand to remove it.`;
+    else if (left < 0) hint = `You have <b>${-left}</b> hidden tile${-left > 1 ? 's' : ''} too many for ${S.melds.length} exposed set${S.melds.length === 1 ? '' : 's'}. Tap a tile to remove it.`;
+    else if (S.win === null) hint = `Now tap the <b>winning tile</b>: the tile you went out on.`;
+    else hint = `Hand complete. Change the winning tile or tap any tile to remove it.`;
+    $('#hint').innerHTML = hint;
+
+    $('#seg-src').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'self') === S.self));
+    $('#fl-out').textContent = S.flowers;
+    const CHECKS = [
+      { k: 'lastTile', label: 'It was the last copy of that tile', fan: 'Last Tile', on: true },
+      { k: 'lastDraw', label: 'It was the last tile in the wall', fan: 'Last Tile Draw', on: S.self },
+      { k: 'repl', label: 'Drawn as a replacement after a kong', fan: 'Out With Replacement Tile', on: S.self },
+      { k: 'lastClaim', label: 'It was the last discard of the game', fan: 'Last Tile Claim', on: !S.self },
+      { k: 'rob', label: 'Robbed from another player’s kong', fan: 'Robbing The Kong', on: !S.self },
+    ];
+    $('#checks').innerHTML = CHECKS.map(c => `<label class="check ${c.on ? '' : 'off'}" title="${c.on ? '' : (S.self ? 'Only when winning on a discard' : 'Only when self-drawn')}"><input type="checkbox" id="ck-${c.k}" data-k="${c.k}" ${S[c.k] && c.on ? 'checked' : ''} ${c.on ? '' : 'disabled'}><span>${c.label}<br><span class="hint" style="font-size:12px">${c.fan}</span></span><span class="pts">${MJ.PTS[c.fan]} pts</span></label>`).join('');
+  }
+
+  function payHTML(fanPts, flowers, self, valid) {
+    if (!valid) return `<div class="field"><span class="label">Payment</span><div class="msg err">Below the 8-point minimum (flowers don’t count). Declaring Mahjong now is a false win: you pay <b>10 to each player</b>, 30 in total.</div></div>`;
+    const tot = fanPts + flowers;
+    const rows = self
+      ? `<tr><td>Each of the 3 opponents pays ${tot} + 8</td><td>${tot + 8}</td></tr><tr class="sum"><td>You receive</td><td>${(tot + 8) * 3}</td></tr>`
+      : `<tr><td>Player who discarded: ${tot} + 8</td><td>${tot + 8}</td></tr><tr><td>Each of the other two players</td><td>8</td></tr><tr class="sum"><td>You receive</td><td>${tot + 24}</td></tr>`;
+    return `<div class="field"><span class="label">Payment · ${self ? 'self-drawn' : 'won on a discard'}</span><table class="pay"><tbody>${rows}</tbody></table></div>`;
+  }
+  const NO = {}; MJ.FANS.forEach(f => NO[f.name] = f.no);
+  function fanRows(fans, flowers) {
+    return fans.map(f => `<li><span class="no">${NO[f.name]}</span><span class="nm">${esc(f.name)}${f.count > 1 ? ` <span>× ${f.count}</span>` : ''}</span><span class="p">${f.pts * f.count}</span></li>`).join('') +
+      (flowers ? `<li class="flower"><span class="no">13</span><span class="nm">Flower Tiles <span>× ${flowers} · bonus</span></span><span class="p">${flowers}</span></li>` : '');
+  }
+  function totalHTML(fanPts, flowers) {
+    const ok = fanPts >= 8;
+    return `<div class="total"><div><div class="label">Hand value</div><div class="num">${fanPts + flowers}<small>pts</small></div>${flowers ? `<div class="hint">${fanPts} from the hand + ${flowers} flower${flowers > 1 ? 's' : ''}</div>` : ''}</div>
+      <div class="seal ${ok ? '' : 'bad'}">${ok ? `<span><big>和</big>Mahjong</span>` : `<span><big>${8 - fanPts}</big>short of 8</span>`}</div></div>`;
+  }
+  function arrangement(h) {
+    if (!h) return '';
+    const grp = (tiles, open) => `<span class="grp ${open ? 'open' : ''}">${tiles.map(t => tileHTML(t, 'mini')).join('')}</span>`;
+    let parts = [];
+    if (h.kind === 'standard' || h.kind === 'knitted') {
+      if (h.kind === 'knitted') parts.push(grp(MJ.knitTiles(h.perm), false));
+      h.sets.forEach(s => parts.push(grp(s.type === 'chow' ? [s.tile, s.tile + 1, s.tile + 2] : Array(s.type === 'kong' ? 4 : 3).fill(s.tile), s.open)));
+      parts.push(grp([h.pair, h.pair], false));
+    } else {
+      const c = [...S.hand, S.win].sort((a, b) => a - b);
+      if (h.kind === 'pairs') for (let i = 0; i < 14; i += 2) parts.push(grp([c[i], c[i + 1]], false));
+      else parts.push(grp(c, false));
+    }
+    const label = { standard: 'Four sets and a pair', knitted: 'Knitted straight, a set and a pair', pairs: 'Seven pairs', orphans: 'Thirteen orphans', hk: 'Honors and knitted singles' }[h.kind];
+    return `<div class="field"><span class="label">Read as · ${label}</span><div class="arr">${parts.join('')}</div><span class="hint" style="font-size:12px">Shaded groups are exposed sets.</span></div>`;
+  }
+  function renderSlip() {
+    const r = MJ.evaluate(S);
+    const slip = $('#slip'); let mob = '';
+    if (r.incomplete) {
+      const n = r.need;
+      slip.innerHTML = `<div><div class="label">Hand value</div><div class="total"><div class="num" style="color:var(--muted)">—</div></div></div>
+        <div class="msg">${n > 0 ? `Add ${n} more hidden tile${n > 1 ? 's' : ''}` : n < 0 ? `Remove ${-n} hidden tile${-n > 1 ? 's' : ''}` : 'Pick the winning tile'}${n > 0 && r.needWin ? ' and the winning tile' : ''} to see the score.</div>
+        <p class="hint">Build the 14-tile hand you went out with: exposed sets first if you have any, then the hidden tiles, then the tile you won on.</p>`;
+      mob = `<span>Hand incomplete</span><a href="#slip">Details</a>`;
+    } else if (r.error) {
+      slip.innerHTML = `<div><div class="label">Hand value</div><div class="total"><div class="num" style="color:var(--muted)">—</div></div></div><div class="msg err">${esc(r.error)}</div>` +
+        (r.waits && r.waits.length ? `<div class="field"><span class="label">This hand would win on</span><div class="waits">${r.waits.map(t => tileHTML(t, 'mini')).join('')}</div></div>` : '');
+      mob = `<span>Not a winning hand</span><a href="#slip">Details</a>`;
+    } else {
+      const ok = r.total >= 8;
+      slip.innerHTML = totalHTML(r.total, S.flowers) +
+        `<ul class="fanlist">${fanRows(r.fans, S.flowers)}</ul>` +
+        (r.implied.length ? `<p class="implied">Already included, not added: ${r.implied.map(x => `${esc(x.name)} (in ${esc(x.by)})`).join('; ')}.</p>` : '') +
+        payHTML(r.total, S.flowers, S.self, ok) + arrangement(r.hand) +
+        `<div class="field"><span class="label">Waiting on ${r.waits.length} tile type${r.waits.length === 1 ? '' : 's'}</span><div class="waits">${r.waits.map(t => tileHTML(t, 'mini')).join('')}</div></div>`;
+      mob = `<span><b>${r.total + S.flowers}</b> pts ${ok ? '· Mahjong' : '· under 8'}</span><a href="#slip">Breakdown</a>`;
+    }
+    $('#mobilebar').innerHTML = mob;
+  }
+
+  // ---------- tally view ----------
+  let TL = { counts: {}, flowers: 0, self: false };
+  try { const t = JSON.parse(localStorage.getItem('mj-tally') || 'null'); if (t && t.counts) TL = Object.assign(TL, t); } catch (e) { }
+  const saveT = () => { try { localStorage.setItem('mj-tally', JSON.stringify(TL)); } catch (e) { } };
+  function tallyState() {
+    const active = MJ.FANS.filter(f => f.no !== 13 && TL.counts[f.no] > 0).sort((a, b) => b.pts - a.pts);
+    const ex = new Map();
+    active.forEach(f => { if (ex.has(f.name)) return; (MJ.EXCL[f.name] || []).forEach(x => { if (!ex.has(x)) ex.set(x, f.name); }); });
+    const counted = active.filter(f => !ex.has(f.name));
+    return { ex, counted, total: counted.reduce((a, f) => a + f.pts * TL.counts[f.no], 0) };
+  }
+  function renderTally() {
+    const st = tallyState();
+    const tiers = [...new Set(MJ.FANS.map(f => f.pts))];
+    $('#tiers').innerHTML = tiers.map(p => {
+      const fs = MJ.FANS.filter(f => f.pts === p && f.no !== 13);
+      return `<div class="tier"><h3>${p} point${p > 1 ? 's' : ''}<span>${fs.length} hands</span></h3><div class="fans">` + fs.map(f => {
+        const c = TL.counts[f.no] || 0, by = st.ex.get(f.name);
+        const desc = by && c ? `<span class="ex-note">Included in ${esc(by)}</span>` : `<span>${esc(f.desc)}</span>`;
+        if (f.multi) return `<div class="fan ${c ? 'on' : ''} ${by && c ? 'ex' : ''}"><span class="n">${f.no}</span><span class="t"><b>${esc(f.name)}</b>${desc}</span><span class="cnt"><button class="mini-btn" data-dec="${f.no}" aria-label="One fewer ${esc(f.name)}">−</button><span>${c}</span><button class="mini-btn" data-inc="${f.no}" aria-label="One more ${esc(f.name)}">+</button></span></div>`;
+        return `<button class="fan ${c ? 'on' : ''} ${by && c ? 'ex' : ''}" data-tog="${f.no}" aria-pressed="${!!c}"><span class="n">${f.no}</span><span class="t"><b>${esc(f.name)}</b>${desc}</span></button>`;
+      }).join('') + `</div></div>`;
+    }).join('');
+    const fans = st.counted.map(f => ({ name: f.name, pts: f.pts, count: TL.counts[f.no] }));
+    $('#tslip').innerHTML = totalHTML(st.total, TL.flowers) +
+      `<div class="row" style="justify-content:space-between"><div class="seg" id="tseg-src"><button data-v="discard" aria-pressed="${!TL.self}">Discard</button><button data-v="self" aria-pressed="${TL.self}">Self-drawn</button></div>
+       <div class="stepper"><button id="tfl-minus" aria-label="One fewer flower">−</button><output>${TL.flowers}✿</output><button id="tfl-plus" aria-label="One more flower">+</button></div></div>` +
+      (fans.length || TL.flowers ? `<ul class="fanlist">${fanRows(fans, TL.flowers)}</ul>` : `<div class="msg">Nothing ticked yet. Pick the scoring hands on the left; the total and payments update as you go.</div>`) +
+      payHTML(st.total, TL.flowers, TL.self, st.total >= 8) +
+      `<button class="btn" id="treset">Clear tally</button>`;
+    $('#mobilebar').innerHTML = `<span><b>${st.total + TL.flowers}</b> pts ${st.total >= 8 ? '· Mahjong' : '· under 8'}</span><a href="#tslip">Payment</a>`;
+  }
+
+  // ---------- routing & events ----------
+  let view = 'hand';
+  function render() {
+    $('#view-hand').hidden = view !== 'hand'; $('#view-tally').hidden = view !== 'tally';
+    $('#tab-hand').setAttribute('aria-current', view === 'hand' ? 'page' : 'false');
+    $('#tab-tally').setAttribute('aria-current', view === 'tally' ? 'page' : 'false');
+    if (view === 'hand') { renderHand(); renderSlip(); } else renderTally();
+  }
+  function route() { const h = location.hash.slice(1); if (h === 'hand' || h === 'tally') view = h; render(); }
+  window.addEventListener('hashchange', route);
+
+  $('#examples').innerHTML = `<option value="">Load an example…</option>` + EXAMPLES.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join('');
+  $('#examples').addEventListener('change', e => { if (e.target.value !== '') { loadExample(+e.target.value); flash = ''; save(); render(); } e.target.value = ''; });
+  $('#clear').addEventListener('click', () => { const keep = { prev: S.prev, seat: S.seat }; S = Object.assign(blank(), keep); flash = ''; save(); render(); });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.t !== undefined) return tap(+b.dataset.t);
+    if (b.dataset.mode) { S.mode = b.dataset.mode; flash = ''; save(); return render(); }
+    if (b.dataset.meld !== undefined) { S.melds.splice(+b.dataset.meld, 1); save(); return render(); }
+    if (b.dataset.hand !== undefined) { S.hand.splice(+b.dataset.hand, 1); if (S.mode === 'win' && S.hand.length < need()) S.mode = 'hand'; flash = ''; save(); return render(); }
+    if (b.dataset.win) { S.win = null; S.mode = 'win'; save(); return render(); }
+    const seg = b.closest('.seg');
+    if (seg && seg.id === 'seg-prev') { S.prev = +b.dataset.v; save(); return render(); }
+    if (seg && seg.id === 'seg-seat') { S.seat = +b.dataset.v; save(); return render(); }
+    if (seg && seg.id === 'seg-src') { S.self = b.dataset.v === 'self'; save(); return render(); }
+    if (seg && seg.id === 'tseg-src') { TL.self = b.dataset.v === 'self'; saveT(); return render(); }
+    if (b.id === 'fl-minus' || b.id === 'fl-plus') { S.flowers = Math.max(0, Math.min(8, S.flowers + (b.id === 'fl-plus' ? 1 : -1))); save(); return render(); }
+    if (b.id === 'tfl-minus' || b.id === 'tfl-plus') { TL.flowers = Math.max(0, Math.min(8, TL.flowers + (b.id === 'tfl-plus' ? 1 : -1))); saveT(); return render(); }
+    if (b.id === 'treset') { TL = { counts: {}, flowers: 0, self: TL.self }; saveT(); return render(); }
+    if (b.dataset.tog) { const n = +b.dataset.tog; TL.counts[n] = TL.counts[n] ? 0 : 1; saveT(); return render(); }
+    if (b.dataset.inc) { const n = +b.dataset.inc; TL.counts[n] = Math.min(4, (TL.counts[n] || 0) + 1); saveT(); return render(); }
+    if (b.dataset.dec) { const n = +b.dataset.dec; TL.counts[n] = Math.max(0, (TL.counts[n] || 0) - 1); saveT(); return render(); }
+  });
+  document.addEventListener('change', e => { const k = e.target.dataset && e.target.dataset.k; if (k) { S[k] = e.target.checked; save(); render(); } });
+  // ---------- photo scanning: SumoPod API (your key) or Claude when opened on claude.ai ----------
+  let sampleFn = null, scanCtl = null;
+  const AI_DEFAULTS = { base: 'https://ai.sumopod.com/v1', model: 'glm-5.3-flash', fallback: 'gpt-5-nano', key: '' };
+  let AI = { ...AI_DEFAULTS };
+  try { AI = Object.assign(AI, JSON.parse(localStorage.getItem('mj-ai') || '{}')); } catch (e) { }
+  const scanMsg = (html, err) => { const m = $('#scan-msg'); m.hidden = !html; m.className = 'msg scanmsg' + (err ? ' err' : ''); m.innerHTML = html || ''; };
+  const scanBusy = on => { ['#scan-cam', '#scan-lib'].forEach(id => { $(id).style.pointerEvents = on ? 'none' : ''; $(id).style.opacity = on ? .5 : ''; }); $('#scan-stop').hidden = !on; };
+  function aiStatus() {
+    $('#ai-status').textContent = AI.key ? `· SumoPod key saved (${AI.model}, fallback ${AI.fallback})` : sampleFn ? '· using Claude' : '· no API key yet';
+    $('#ai-key').value = AI.key; $('#ai-base').value = AI.base; $('#ai-model').value = AI.model; $('#ai-fallback').value = AI.fallback;
+  }
+  function needKey() {
+    if (!AI.key && !sampleFn) { $('#ai-settings').open = true; scanMsg('To read photos, paste your SumoPod API key in AI settings and save. You can still enter the tiles by hand below.'); return true; }
+    return false;
+  }
+  $('#ai-save').addEventListener('click', () => {
+    AI = { key: $('#ai-key').value.trim(), base: ($('#ai-base').value.trim() || AI_DEFAULTS.base).replace(/\/+$/, ''), model: $('#ai-model').value.trim() || AI_DEFAULTS.model, fallback: $('#ai-fallback').value.trim() || AI_DEFAULTS.fallback };
+    try { localStorage.setItem('mj-ai', JSON.stringify(AI)); } catch (e) { }
+    aiStatus(); scanMsg(AI.key ? 'Settings saved. Take a photo to try it.' : 'Settings saved without a key.'); 
+  });
+  $('#ai-forget').addEventListener('click', () => { AI.key = ''; try { localStorage.setItem('mj-ai', JSON.stringify(AI)); } catch (e) { } aiStatus(); scanMsg('API key removed from this browser.'); });
+  aiStatus();
+  (window.claude && window.claude.use ? window.claude.use('sample') : Promise.resolve(null)).then(async s => {
+    const lim = s ? await s.limits().catch(() => null) : null;
+    if (s && lim && lim.images) sampleFn = s;
+    aiStatus();
+  });
+  // Shrink the photo before sending: tiles stay legible at 1600 px and uploads stay small.
+  function toDataURL(file) {
+    return new Promise((res, rej) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej({ code: 'image_rejected' }); };
+      img.src = url;
+    });
+  }
+  function parseJSON(text) {
+    const t = String(text || '').trim();
+    const tries = [t, (t.match(/```(?:json)?\s*([\s\S]*?)```/) || [])[1], t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)];
+    for (const x of tries) { if (!x) continue; try { return JSON.parse(x); } catch (e) { } }
+    throw { code: 'invalid_json' };
+  }
+  async function askSumoPod(model, dataUrl, signal) {
+    let res;
+    try {
+      res = await fetch(AI.base + '/chat/completions', {
+        method: 'POST', signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI.key },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: dataUrl } }] }] }),
+      });
+    } catch (e) { throw signal.aborted ? { code: 'cancelled' } : { code: 'network', message: String(e && e.message || e) }; }
+    const body = await res.text();
+    if (!res.ok) {
+      let msg = body; try { const j = JSON.parse(body); msg = (j.error && (j.error.message || j.error)) || j.message || body; } catch (e) { }
+      throw { code: res.status === 401 || res.status === 403 ? 'bad_key' : res.status === 429 ? 'rate_limited' : 'http', status: res.status, message: String(msg).slice(0, 200) };
+    }
+    let content;
+    try { const j = JSON.parse(body); content = j.choices[0].message.content; } catch (e) { throw { code: 'invalid_json' }; }
+    if (Array.isArray(content)) content = content.map(p => p.text || '').join('');
+    return parseJSON(content);
+  }
+  async function readTiles(file, signal) {
+    if (AI.key) {
+      const dataUrl = await toDataURL(file);
+      const models = [AI.model, AI.fallback].filter((m, i, a) => m && a.indexOf(m) === i);
+      let lastErr;
+      for (const m of models) {
+        try { const r = await askSumoPod(m, dataUrl, signal); return { r, via: m }; }
+        catch (e) { if (e.code === 'cancelled' || e.code === 'bad_key') throw e; lastErr = { ...e, model: m }; }
+      }
+      throw lastErr;
+    }
+    return { r: await sampleFn.json(PROMPT, { images: [file], modelTier: 'complex', signal }), via: 'Claude' };
+  }
+  const CODE = /^([1-9])([mps])$|^[ESWNCFP]$/;
+  const PROMPT = `This photo shows a player's winning Mahjong hand (Chinese Official rules). Identify every tile.
+Tile codes:
+- Characters (red 萬 under a Chinese numeral 一二三四五六七八九): 1m to 9m
+- Dots / circles: 1p to 9p
+- Bamboo / sticks: 1s to 9s (the 1 Bamboo usually shows a bird)
+- Winds 東 南 西 北: E S W N
+- Dragons: C = Red Dragon 中, F = Green Dragon 發, P = White Dragon (blank face or a blue frame)
+Flower and Season tiles (flowers, seasons, numbered pictures) are not part of the hand: count them in "flowers" only.
+Sets that are set apart, turned sideways or clearly exposed go in "melds". A kong with two face-down tiles is "concealed_kong". All other tiles are "hand".
+If one tile is set apart at the end as the winning tile, put it in "win" and not in "hand"; otherwise "win" is null.
+A complete hand is 14 tiles, with each kong counting as 3, so check your count. List tiles left to right.
+Reply with only this JSON:
+{"melds":[{"type":"chow|pung|kong|concealed_kong","tiles":["2m","3m","4m"]}],"hand":["1p","2p"],"win":"9p","flowers":0,"notes":"one short sentence naming any tile you were unsure of, or empty"}`;
+  async function scanPhoto(file) {
+    if (!file || needKey()) return;
+    const th = $('#scan-thumb'); const img = new Image(); img.className = 'thumb'; img.alt = 'Your photo'; img.src = URL.createObjectURL(file); th.replaceWith(img); img.id = 'scan-thumb';
+    scanCtl = new AbortController(); scanBusy(true);
+    scanMsg('Reading the tiles… this usually takes 20 to 60 seconds.');
+    try {
+      const { r, via } = await readTiles(file, scanCtl.signal);
+      applyScan(r, via);
+    } catch (e) {
+      const c = e && e.code;
+      const copy = {
+        cancelled: '',
+        bad_key: 'SumoPod refused the API key. Check it in AI settings.',
+        network: 'Could not reach the API from this page. Check your connection and the API base URL in AI settings.',
+        http: `The API returned an error${e.status ? ' (' + e.status + ')' : ''}${e.model ? ' for ' + esc(e.model) : ''}: ${esc(e.message || '')}`,
+        not_granted: 'Photo reading needs your permission to use Claude. Reload the page to be asked again, or add a SumoPod key in AI settings.',
+        image_rejected: 'That image could not be read. Try a JPEG or PNG photo.', rate_limited: 'Too many requests right now. Wait a minute and try again.',
+        refused: 'The photo could not be read. Try a clearer picture of just the tiles.', invalid_json: 'The answer came back in the wrong shape. Try the photo again.',
+        session_expired: 'Your session has expired. Sign in to claude.ai again.',
+      }[c];
+      scanMsg(copy === undefined ? 'Something went wrong reading the photo. Try again.' : copy, copy !== '');
+    } finally { scanBusy(false); scanCtl = null; }
+  }
+  function applyScan(r, via) {
+    if (!r || typeof r !== 'object') return scanMsg('The answer came back in the wrong shape. Try the photo again.', true);
+    const ok = c => typeof c === 'string' && CODE.test(c.trim());
+    const tile = c => T(c.trim())[0];
+    const bad = [];
+    const melds = [];
+    (Array.isArray(r.melds) ? r.melds : []).forEach(m => {
+      const ts = (Array.isArray(m && m.tiles) ? m.tiles : []).filter(ok).map(tile).sort((a, b) => a - b);
+      if (!ts.length) return;
+      const type = { chow: 'chow', pung: 'pung', kong: 'mkong', concealed_kong: 'ckong' }[m.type];
+      if (type === 'chow' && ts.length === 3 && ts[0] < 27 && ts[1] === ts[0] + 1 && ts[2] === ts[0] + 2) melds.push({ type, tile: ts[0] });
+      else if (type && type !== 'chow' && ts.every(t => t === ts[0])) melds.push({ type, tile: ts[0] });
+      else bad.push(...ts);
+    });
+    let hand = (Array.isArray(r.hand) ? r.hand : []).filter(ok).map(tile).concat(bad);
+    let win = ok(r.win) ? tile(r.win) : null;
+    const keep = { prev: S.prev, seat: S.seat, self: S.self };
+    S = Object.assign(blank(), keep, { melds: melds.slice(0, 4), flowers: Math.max(0, Math.min(8, +r.flowers || 0)) });
+    const need = 13 - 3 * S.melds.length;
+    let guessed = false;
+    if (win === null && hand.length === need + 1) { win = hand.pop(); guessed = true; }
+    S.hand = hand.sort((a, b) => a - b); S.win = win;
+    S.mode = S.hand.length < need ? 'hand' : 'win';
+    const n = S.hand.length + S.melds.length * 3 + (S.win !== null ? 1 : 0);
+    const notes = typeof r.notes === 'string' && r.notes.trim() ? ' ' + esc(r.notes.trim()) : '';
+    const fix = S.hand.length !== need ? ` The count is off, so add or remove tiles below before scoring.` : '';
+    scanMsg(`Read <b>${n} of 14</b> tiles${S.melds.length ? ` with ${S.melds.length} exposed set${S.melds.length > 1 ? 's' : ''}` : ''}${S.flowers ? ` and ${S.flowers} flower${S.flowers > 1 ? 's' : ''}` : ''}.${guessed ? ' The last tile was taken as the winning tile.' : ''}${fix} Check the tiles against your photo, then set the winds and how you won.${notes}${via ? ` <span class="hint">Read by ${esc(via)}.</span>` : ''}`, !!fix);
+    flash = ''; save(); render();
+  }
+  ['#photo-cam', '#photo-lib'].forEach(id => $(id).addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; scanPhoto(f); }));
+  $('#scan-stop').addEventListener('click', () => scanCtl && scanCtl.abort());
+  route();
+})();
+</script>
